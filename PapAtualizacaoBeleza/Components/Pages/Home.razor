@@ -1,0 +1,1049 @@
+﻿@page "/"
+@using PapAtualizacaoBeleza.Components.Layout
+@using Emgu.CV
+@using Emgu.CV.CvEnum
+@using Emgu.CV.Structure
+@using Emgu.CV.Face
+@using Emgu.CV.Util
+@using System.Drawing
+@using System.IO
+@using System.Threading
+@layout EmptyLayout
+@rendermode InteractiveServer
+@implements IDisposable
+@inject NavigationManager Navigation
+@inject EstadoApp Estado
+
+<PageTitle>VaultFace — Acesso</PageTitle>
+
+<div class="page">
+
+    @* TOPBAR *@
+    <header class="topbar">
+        <div class="brand">
+            <div class="brand-lock">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </svg>
+            </div>
+            VaultFace
+        </div>
+        <div class="topbar-right">
+            <span class="topbar-status @(cameraAtiva ? "status--live" : "status--idle")">
+                <span class="status-dot"></span>
+                @(cameraAtiva ? "Em execução" : "Em espera")
+            </span>
+        </div>
+    </header>
+
+    <main class="center">
+        <div class="layout">
+
+            @* PAINEL ESQUERDO — info *@
+            <div class="info-side">
+                <div class="info-badge">Biometria facial</div>
+                <h1 class="info-title">Acesso seguro pelo seu rosto</h1>
+                <p class="info-desc">Posicione o rosto na câmera. O sistema identifica-o automaticamente em segundos — sem palavras-passe, sem cartões.</p>
+
+                <div class="feature-list">
+                    <div class="feature-item">
+                        <div class="feature-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="feature-name">Reconhecimento privado</p>
+                            <p class="feature-desc">Dados processados localmente, sem envio para servidores externos</p>
+                        </div>
+                    </div>
+                    <div class="feature-item">
+                        <div class="feature-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                <circle cx="12" cy="12" r="10" />
+                                <polyline points="12 6 12 12 16 14" />
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="feature-name">Acesso em segundos</p>
+                            <p class="feature-desc">@FRAMES_PARA_LOGIN frames de confirmação — rápido e fiável</p>
+                        </div>
+                    </div>
+                    <div class="feature-item">
+                        <div class="feature-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                                <circle cx="12" cy="12" r="3" />
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="feature-name">Anti-falsificação</p>
+                            <p class="feature-desc">Múltiplas confirmações consecutivas para evitar falsos acessos</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            @* PAINEL DIREITO — câmera *@
+            <div class="camera-side">
+                <div class="camera-card">
+
+                    <div class="camera-card-header">
+                        <h2>Reconhecimento Facial</h2>
+                        <p>Aproxime o rosto da câmera para desbloquear</p>
+                    </div>
+
+                    @* VIEWPORT *@
+                    <div class="viewport @GetViewportClass()">
+
+                        @if (!cameraAtiva)
+                        {
+                            <div class="screen-idle">
+                                <div class="idle-ring">
+                                    <div class="idle-icon">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4">
+                                            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                                            <circle cx="12" cy="13" r="4" />
+                                        </svg>
+                                    </div>
+                                </div>
+                                <p class="idle-title">Câmera inativa</p>
+                                <p class="idle-hint">Clique para iniciar o reconhecimento</p>
+                                <button class="btn-primary" @onclick="IniciarCamera">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" width="15" height="15">
+                                        <polygon points="5 3 19 12 5 21 5 3" />
+                                    </svg>
+                                    Ativar câmera
+                                </button>
+                            </div>
+                        }
+                        else if (string.IsNullOrEmpty(imageBase64))
+                        {
+                            <div class="screen-loading">
+                                <div class="spin"></div>
+                                <p>A iniciar sensor...</p>
+                            </div>
+                        }
+                        else
+                        {
+                            <img src="@imageBase64" class="feed" alt="câmera" />
+
+                            @* Guia oval *@
+                            <div class="face-guide @GetGuideClass()">
+                                <svg class="guide-svg" viewBox="0 0 200 240" fill="none">
+                                    <ellipse cx="100" cy="120" rx="76" ry="96"
+                                             stroke="currentColor" stroke-width="2"
+                                             stroke-dasharray="@(framesConfirmados > 0 ? "0" : "8 6")"
+                                             fill="none" />
+                                </svg>
+                            </div>
+
+                            @* Barra de progresso de reconhecimento *@
+                            @if (framesConfirmados > 0)
+                            {
+                                <div class="scan-progress-wrap">
+                                    <div class="scan-progress-bar" style="width: @(framesConfirmados * 100 / FRAMES_PARA_LOGIN)%"></div>
+                                </div>
+                            }
+
+                            @* Badge de estado *@
+                            <div class="cam-badge @GetBadgeClass()">
+                                <span class="cam-dot"></span>
+                                <span>@GetBadgeTexto()</span>
+                            </div>
+                        }
+                    </div>
+
+                    @* ERRO *@
+                    @if (!string.IsNullOrEmpty(mensagemErro))
+                    {
+                        <div class="error-bar">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+                                <circle cx="12" cy="12" r="10" />
+                                <path d="M12 8v4M12 16h.01" />
+                            </svg>
+                            <span>@mensagemErro</span>
+                            <button @onclick="() => mensagemErro = string.Empty">✕</button>
+                        </div>
+                    }
+
+                    @* FOOTER *@
+                    <div class="card-footer">
+                        @if (cameraAtiva)
+                        {
+                            <div class="footer-status">
+                                <span class="live-dot"></span>
+                                <span>@statusMensagem</span>
+                            </div>
+                            <button class="btn-stop" @onclick="PararCamera">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" width="13" height="13">
+                                    <rect x="3" y="3" width="18" height="18" rx="2" />
+                                </svg>
+                                Parar
+                            </button>
+                        }
+                        else
+                        {
+                            <span class="footer-hint">Sistema de acesso biométrico VaultFace</span>
+                        }
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+</div>
+
+@code {
+    private BaseSql baseSql = new BaseSql();
+    private VideoCapture? camera;
+    private CascadeClassifier? faceDetector;
+    private LBPHFaceRecognizer? reconhecedor;
+
+    private Mat frame = new Mat();
+    private readonly object frameLock = new object();
+    private bool cameraAtiva = false;
+    private bool iaTreinada = false;
+    private bool loginRealizado = false;
+    private int framesConfirmados = 0;
+
+    private const int FRAMES_PARA_LOGIN = 6;
+    private const double LIMIAR_CONFIANCA = 60.0;
+    private const int FACE_SIZE = 200;
+    
+    private const int FRAMES_DEBOUNCE_DESCIDA = 4;
+    private int _framesSemsinal = 0;
+
+    private Dictionary<int, Usuario> usuariosTreinados = new();
+    private string imageBase64 = "";
+    private string mensagemErro = "";
+    private string statusMensagem = "Pronto para reconhecimento";
+    private CancellationTokenSource? cts;
+
+    private string GetViewportClass() => framesConfirmados > 0 ? "viewport--scanning" : "";
+    private string GetGuideClass() => framesConfirmados > 0 ? "guide--scanning" : "guide--idle";
+    private string GetBadgeClass() => framesConfirmados > 0 ? "badge--scanning" : "badge--idle";
+    private string GetBadgeTexto() => framesConfirmados > 0
+        ? $"A verificar... {framesConfirmados}/{FRAMES_PARA_LOGIN}"
+        : "Sensor ativo";
+
+    protected override async Task OnInitializedAsync()
+    {
+        string cascadePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "haarcascade_frontalface_default.xml");
+        if (!File.Exists(cascadePath))
+        {
+            mensagemErro = "Recurso de deteção facial não encontrado.";
+            return;
+        }
+        faceDetector = new CascadeClassifier(cascadePath);
+        await Task.Run(TreinarInteligencia);
+        if (!iaTreinada) Navigation.NavigateTo("/cadastro");
+        else await IniciarCamera(); // auto-liga câmera se já há utilizadores treinados
+    }
+
+    private void TreinarInteligencia()
+    {
+        try
+        {
+            var usuarios = baseSql.ObterUsuariosComRostos();
+            if (usuarios == null || !usuarios.Any()) { iaTreinada = false; return; }
+
+            using VectorOfMat faces = new();
+            using VectorOfInt labels = new();
+            usuariosTreinados.Clear();
+
+            foreach (var usuario in usuarios)
+            {
+                usuariosTreinados[usuario.Id] = usuario;
+                foreach (var rostoBytes in usuario.Rostos)
+                {
+                    using Mat img = new();
+                    CvInvoke.Imdecode(rostoBytes, ImreadModes.Grayscale, img);
+                    CvInvoke.Resize(img, img, new Size(FACE_SIZE, FACE_SIZE));
+                    CvInvoke.EqualizeHist(img, img);
+                    faces.Push(img);
+                    labels.Push(new[] { usuario.Id });
+                }
+            }
+
+            reconhecedor?.Dispose();
+            reconhecedor = new LBPHFaceRecognizer(1, 8, 8, 8, LIMIAR_CONFIANCA);
+            reconhecedor.Train(faces, labels);
+            iaTreinada = true;
+            statusMensagem = "Pronto para reconhecimento";
+        }
+        catch (Exception ex) { mensagemErro = $"Falha no treino: {ex.Message}"; }
+    }
+
+    private async Task IniciarCamera()
+    {
+        try
+        {
+            if (camera != null) PararCamera();
+            camera = new VideoCapture(0, VideoCapture.API.Any);
+            camera.Set(CapProp.FrameWidth, 640);
+            camera.Set(CapProp.FrameHeight, 480);
+            cameraAtiva = true;
+            loginRealizado = false;
+            cts = new CancellationTokenSource();
+            _ = Task.Run(() => LoopDeCaptura(cts.Token));
+            await InvokeAsync(StateHasChanged);
+        }
+        catch { mensagemErro = "Câmera não disponível. Verifique a ligação."; }
+    }
+
+    private async Task LoopDeCaptura(CancellationToken token)
+    {
+        while (!token.IsCancellationRequested && cameraAtiva)
+        {
+            try
+            {
+                Mat? captured = null;
+
+                // Mat local para evitar ExecutionEngineException (mesmo fix do Cadastro)
+                using (Mat localFrame = new Mat())
+                {
+                    bool leituraOk = false;
+                    lock (frameLock)
+                    {
+                        if (camera != null && camera.IsOpened)
+                        {
+                            camera.Read(localFrame);
+                            leituraOk = !localFrame.IsEmpty;
+                            if (leituraOk)
+                            {
+                                frame?.Dispose();
+                                frame = localFrame.Clone();
+                            }
+                        }
+                    }
+                    if (!leituraOk) { await Task.Delay(33, token); continue; }
+                    captured = localFrame.Clone();
+                }
+
+                if (captured != null)
+                {
+                    using (captured)
+                    using (Mat gray = new())
+                    {
+                        CvInvoke.CvtColor(captured, gray, ColorConversion.Bgr2Gray);
+                        CvInvoke.EqualizeHist(gray, gray);
+
+                        Rectangle[] faces = faceDetector!.DetectMultiScale(
+                            gray, 1.2, 6, new Size(150, 150));
+
+                        bool alguemIdentificado = false;
+
+                        if (faces.Length > 0 && iaTreinada && reconhecedor != null)
+                        {
+                            using Mat rostoROI = new Mat(gray, faces[0]);
+                            using Mat rostoSized = new Mat();
+                            CvInvoke.Resize(rostoROI, rostoSized, new Size(FACE_SIZE, FACE_SIZE));
+                            var result = reconhecedor.Predict(rostoSized);
+
+                            if (result.Label != -1 && result.Distance < LIMIAR_CONFIANCA)
+                            {
+                                if (usuariosTreinados.TryGetValue(result.Label, out var usuario))
+                                {
+                                    _framesSemsinal = 0;
+                                    framesConfirmados = Math.Min(framesConfirmados + 1, FRAMES_PARA_LOGIN);
+                                    alguemIdentificado = true;
+                                    statusMensagem = $"A verificar {usuario.Nome}...";
+
+                                    if (framesConfirmados >= FRAMES_PARA_LOGIN)
+                                        _ = LoginComSucesso(usuario);
+                                }
+                            }
+                        }
+
+                        // Debounce na descida — só reduz framesConfirmados após N frames sem sinal
+                        if (!alguemIdentificado)
+                        {
+                            _framesSemsinal++;
+                            if (_framesSemsinal >= FRAMES_DEBOUNCE_DESCIDA)
+                            {
+                                framesConfirmados = Math.Max(framesConfirmados - 1, 0);
+                                if (framesConfirmados == 0) statusMensagem = "Pronto para reconhecimento";
+                            }
+                        }
+
+                        string base64 = MatToBase64(captured);
+                        await InvokeAsync(() =>
+                        {
+                            imageBase64 = base64;
+                            StateHasChanged();
+                        });
+                    }
+                }
+            }
+            catch (TaskCanceledException) { break; }
+            catch { }
+
+            await Task.Delay(40, token);
+        }
+    }
+
+    private async Task LoginComSucesso(Usuario usuario)
+    {
+        if (loginRealizado) return;
+        loginRealizado = true;
+        statusMensagem = "Identidade confirmada!";
+        await InvokeAsync(StateHasChanged);
+        await Task.Delay(700);
+        PararCamera();
+        await InvokeAsync(() =>
+        {
+            Estado.UsuarioAtual = usuario;
+            Navigation.NavigateTo("/UserLogado", replace: true);
+        });
+    }
+
+    private string MatToBase64(Mat mat)
+    {
+        if (mat.IsEmpty) return "";
+        using VectorOfByte vb = new();
+        CvInvoke.Imencode(".jpg", mat, vb, new KeyValuePair<ImwriteFlags, int>(ImwriteFlags.JpegQuality, 72));
+        return "data:image/jpeg;base64," + Convert.ToBase64String(vb.ToArray());
+    }
+
+    private void PararCamera()
+    {
+        cameraAtiva = false;
+        cts?.Cancel();
+        cts?.Dispose();
+        cts = null;
+        Thread.Sleep(150);
+        lock (frameLock)
+        {
+            camera?.Dispose();
+            camera = null;
+            frame?.Dispose();
+            frame = new Mat();
+        }
+        imageBase64 = "";
+        framesConfirmados = 0;
+        _framesSemsinal = 0;
+        statusMensagem = "Pronto para reconhecimento";
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        PararCamera();
+        faceDetector?.Dispose();
+        reconhecedor?.Dispose();
+        cts?.Dispose();
+    }
+}
+
+<style>
+    @@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap');
+
+    *, *::before, *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+    }
+
+    :root {
+        --bg: #f0f2f5;
+        --surface: #ffffff;
+        --border: #e2e5ea;
+        --text: #111318;
+        --muted: #6b7280;
+        --dim: #9ca3af;
+        --accent: #1a56db;
+        --amber: #d97706;
+        --red: #dc2626;
+        --green: #16a34a;
+        --green-bg: #f0fdf4;
+        --green-br: #bbf7d0;
+        --red-bg: #fef2f2;
+        --red-br: #fecaca;
+        --radius: 14px;
+        --shadow: 0 4px 28px rgba(0,0,0,0.08);
+    }
+
+    body {
+        font-family: 'DM Sans', sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        -webkit-font-smoothing: antialiased;
+        min-height: 100vh;
+    }
+
+    .page {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* ── TOPBAR ── */
+    .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 18px 32px;
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+    }
+
+    .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 16px;
+        font-weight: 600;
+        letter-spacing: -0.3px;
+    }
+
+    .brand-lock {
+        width: 32px;
+        height: 32px;
+        background: var(--text);
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        flex-shrink: 0;
+    }
+
+        .brand-lock svg {
+            width: 16px;
+            height: 16px;
+        }
+
+    .topbar-right {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .topbar-status {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        font-size: 12px;
+        font-weight: 500;
+        padding: 6px 12px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: var(--bg);
+        color: var(--dim);
+        transition: all 0.3s;
+    }
+
+    .status--live {
+        background: var(--green-bg);
+        border-color: var(--green-br);
+        color: var(--green);
+    }
+
+    .status-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: currentColor;
+        animation: blink 2s infinite;
+    }
+
+    .status--idle .status-dot {
+        animation: none;
+        opacity: 0.4;
+    }
+
+    /* ── MAIN LAYOUT ── */
+    .center {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 40px 24px;
+    }
+
+    .layout {
+        display: grid;
+        grid-template-columns: 1fr 420px;
+        gap: 48px;
+        width: 100%;
+        max-width: 960px;
+        align-items: center;
+    }
+
+    /* ── INFO SIDE ── */
+    .info-side {
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+    }
+
+    .info-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 5px 12px;
+        border-radius: 999px;
+        background: #eff6ff;
+        border: 1px solid #bfdbfe;
+        color: var(--accent);
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        width: fit-content;
+    }
+
+    .info-title {
+        font-size: 34px;
+        font-weight: 600;
+        letter-spacing: -0.8px;
+        line-height: 1.2;
+        color: var(--text);
+    }
+
+    .info-desc {
+        font-size: 15px;
+        color: var(--muted);
+        line-height: 1.7;
+        max-width: 380px;
+    }
+
+    .feature-list {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        margin-top: 8px;
+    }
+
+    .feature-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 14px;
+    }
+
+    .feature-icon {
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--accent);
+        flex-shrink: 0;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    }
+
+        .feature-icon svg {
+            width: 17px;
+            height: 17px;
+        }
+
+    .feature-name {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text);
+        margin-bottom: 2px;
+    }
+
+    .feature-desc {
+        font-size: 13px;
+        color: var(--muted);
+        line-height: 1.5;
+    }
+
+    /* ── CAMERA CARD ── */
+    .camera-side {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .camera-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+    }
+
+    .camera-card-header {
+        padding: 20px 22px;
+        border-bottom: 1px solid var(--border);
+    }
+
+        .camera-card-header h2 {
+            font-size: 16px;
+            font-weight: 600;
+            letter-spacing: -0.3px;
+        }
+
+        .camera-card-header p {
+            font-size: 13px;
+            color: var(--muted);
+            margin-top: 3px;
+        }
+
+    /* ── VIEWPORT ── */
+    .viewport {
+        background: #0e0e0e;
+        aspect-ratio: 4 / 3;
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        transition: box-shadow 0.4s;
+    }
+
+    .viewport--scanning {
+        box-shadow: inset 0 0 0 2.5px rgba(217,119,6,0.55);
+    }
+
+    .feed {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+    }
+
+    /* Guia oval com SVG (igual ao Cadastro) */
+    .face-guide {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -54%);
+        width: 42%;
+        pointer-events: none;
+        transition: color 0.3s, filter 0.3s;
+    }
+
+    .guide-svg {
+        width: 100%;
+        height: auto;
+        display: block;
+    }
+
+    .guide--idle {
+        color: rgba(255,255,255,0.2);
+    }
+
+    .guide--scanning {
+        color: rgba(217,119,6,0.85);
+        filter: drop-shadow(0 0 5px rgba(217,119,6,0.4));
+        animation: pulse-oval 0.9s ease-in-out infinite;
+    }
+
+    @@keyframes pulse-oval {
+        0%, 100% {
+            opacity: 1;
+        }
+
+        50% {
+            opacity: 0.55;
+        }
+    }
+
+    /* Barra de progresso de scan */
+    .scan-progress-wrap {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: rgba(255,255,255,0.08);
+    }
+
+    .scan-progress-bar {
+        height: 100%;
+        background: #f59e0b;
+        transition: width 0.12s linear;
+    }
+
+    /* Badge overlay */
+    .cam-badge {
+        position: absolute;
+        top: 13px;
+        left: 13px;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        padding: 5px 13px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        backdrop-filter: blur(8px);
+        transition: all 0.3s;
+    }
+
+    .badge--idle {
+        background: rgba(0,0,0,0.5);
+        color: rgba(255,255,255,0.75);
+        border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .badge--scanning {
+        background: rgba(217,119,6,0.18);
+        border: 1px solid rgba(217,119,6,0.45);
+        color: #fbbf24;
+    }
+
+    .cam-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: currentColor;
+        flex-shrink: 0;
+    }
+
+    .badge--idle .cam-dot {
+        animation: blink 2s infinite;
+    }
+
+    .badge--scanning .cam-dot {
+        animation: blink 0.7s infinite;
+    }
+
+    /* Ecrã idle */
+    .screen-idle {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 14px;
+        padding: 44px 32px;
+        text-align: center;
+    }
+
+    .idle-ring {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        border: 1px solid rgba(255,255,255,0.1);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .idle-icon {
+        width: 54px;
+        height: 54px;
+        border-radius: 14px;
+        background: rgba(255,255,255,0.04);
+        border: 1px solid rgba(255,255,255,0.08);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: rgba(255,255,255,0.3);
+    }
+
+        .idle-icon svg {
+            width: 26px;
+            height: 26px;
+        }
+
+    .idle-title {
+        font-size: 15px;
+        font-weight: 500;
+        color: rgba(255,255,255,0.55);
+    }
+
+    .idle-hint {
+        font-size: 12px;
+        color: rgba(255,255,255,0.3);
+        margin-top: -6px;
+    }
+
+    /* Ecrã loading */
+    .screen-loading {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 14px;
+        color: rgba(255,255,255,0.4);
+        font-size: 13px;
+    }
+
+    /* Spinner */
+    .spin {
+        width: 28px;
+        height: 28px;
+        border: 2px solid rgba(255,255,255,0.1);
+        border-top-color: var(--accent);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+    }
+
+    @@keyframes spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    /* ── BUTTONS ── */
+    .btn-primary {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 11px 22px;
+        background: var(--accent);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        font-family: 'DM Sans', sans-serif;
+        cursor: pointer;
+        transition: all 0.15s;
+        box-shadow: 0 2px 10px rgba(26,86,219,0.25);
+    }
+
+        .btn-primary:hover {
+            background: #1648c0;
+            transform: translateY(-1px);
+        }
+
+    .btn-stop {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 13px;
+        background: var(--red-bg);
+        color: var(--red);
+        border: 1px solid var(--red-br);
+        border-radius: 7px;
+        font-size: 12px;
+        font-weight: 600;
+        font-family: 'DM Sans', sans-serif;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+
+        .btn-stop:hover {
+            background: #fde8e8;
+        }
+
+    /* ── ERROR BAR ── */
+    .error-bar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 14px 18px 0;
+        padding: 11px 14px;
+        background: var(--red-bg);
+        border: 1px solid var(--red-br);
+        border-radius: 8px;
+        font-size: 13px;
+        color: var(--red);
+    }
+
+        .error-bar span {
+            flex: 1;
+        }
+
+        .error-bar button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--red);
+            opacity: 0.55;
+            font-size: 13px;
+            padding: 0;
+        }
+
+            .error-bar button:hover {
+                opacity: 1;
+            }
+
+    /* ── CARD FOOTER ── */
+    .card-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 14px 18px;
+        border-top: 1px solid var(--border);
+        min-height: 52px;
+    }
+
+    .footer-status {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: var(--muted);
+    }
+
+    .live-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--green);
+        box-shadow: 0 0 5px var(--green);
+        animation: blink 2s infinite;
+        flex-shrink: 0;
+    }
+
+    .footer-hint {
+        font-size: 13px;
+        color: var(--dim);
+    }
+
+    @@keyframes blink {
+        0%, 100% {
+            opacity: 1;
+        }
+
+        50% {
+            opacity: 0.3;
+        }
+    }
+
+    /* ── RESPONSIVE ── */
+    @@media (max-width: 860px) {
+        .layout {
+            grid-template-columns: 1fr;
+            max-width: 480px;
+        }
+
+        .info-side {
+            order: 2;
+            text-align: center;
+            align-items: center;
+        }
+
+        .info-desc {
+            max-width: 100%;
+        }
+
+        .feature-list {
+            align-items: flex-start;
+            max-width: 360px;
+        }
+
+        .camera-side {
+            order: 1;
+        }
+
+        .info-title {
+            font-size: 26px;
+        }
+    }
+
+    @@media (max-width: 500px) {
+        .topbar {
+            padding: 14px 18px;
+        }
+
+        .center {
+            padding: 20px 16px;
+        }
+
+        .camera-card-header {
+            padding: 16px 18px;
+        }
+
+        .card-footer {
+            padding: 12px 14px;
+        }
+    }
+</style>

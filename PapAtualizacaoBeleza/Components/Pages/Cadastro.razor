@@ -1,0 +1,1971 @@
+﻿@page "/cadastro"
+@using PapAtualizacaoBeleza.Components.Layout
+@using Emgu.CV
+@using Emgu.CV.CvEnum
+@using Emgu.CV.Structure
+@using Emgu.CV.Util
+@using System.Drawing
+@using System.IO
+@using System.Threading
+@layout EmptyLayout
+@rendermode InteractiveServer
+@implements IDisposable
+@inject NavigationManager Navigation
+@inject BaseSql BaseSqlService
+@inject EstadoApp estadoApp
+
+<PageTitle>Cadastro Biométrico — VaultFace</PageTitle>
+
+<div class="page">
+
+    @* TOPBAR *@
+    <header class="topbar">
+        <div class="brand">
+            <div class="brand-lock">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </svg>
+            </div>
+            VaultFace
+        </div>
+        @if (!primeiroUtilizador)
+        {
+            <button class="btn-outline" @onclick="VoltarParaAdmin">← Painel Admin</button>
+        }
+        else
+        {
+            <span class="topbar-hint">Registe o primeiro utilizador para continuar</span>
+        }
+    </header>
+
+    <main class="center">
+        <div class="wizard">
+
+            @* STEPS INDICATOR *@
+            <div class="steps-bar">
+                <div class="step @(etapa >= Etapa.Nome ? "step--active" : "") @(etapa > Etapa.Nome ? "step--done" : "")">
+                    <div class="step-circle">
+                        @if (etapa > Etapa.Nome)
+                        {
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12" /></svg>
+                        }
+                        else
+                        {
+                            <span>1</span>
+                        }
+                    </div>
+                    <span class="step-label">Nome</span>
+                </div>
+                <div class="step-connector @(etapa > Etapa.Nome ? "connector--done" : "")"></div>
+                <div class="step @(etapa >= Etapa.Camera ? "step--active" : "") @(etapa > Etapa.Camera ? "step--done" : "")">
+                    <div class="step-circle">
+                        @if (etapa > Etapa.Camera)
+                        {
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12" /></svg>
+                        }
+                        else
+                        {
+                            <span>2</span>
+                        }
+                    </div>
+                    <span class="step-label">Captura</span>
+                </div>
+                <div class="step-connector @(etapa > Etapa.Camera ? "connector--done" : "")"></div>
+                <div class="step @(etapa >= Etapa.Concluido ? "step--active" : "")">
+                    <div class="step-circle"><span>3</span></div>
+                    <span class="step-label">Concluído</span>
+                </div>
+            </div>
+
+            @* ETAPA 1: NOME *@
+            @if (etapa == Etapa.Nome)
+            {
+                <div class="card card--centered animate-in">
+                    <div class="card-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                            <circle cx="12" cy="7" r="4" />
+                        </svg>
+                    </div>
+                    <h1 class="card-title">Identificação do Utilizador</h1>
+                    <p class="card-sub">Introduza o nome completo antes de iniciar a captura facial</p>
+
+                    <div class="name-form">
+                        <div class="field-wrapper">
+                            <svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                                <circle cx="12" cy="7" r="4" />
+                            </svg>
+                            <input id="nome-input"
+                                   type="text"
+                                   @bind="nomeUsuario"
+                                   @bind:event="oninput"
+                                   @onkeydown="OnNomeKeyDown"
+                                   class="field-input @(nomeErro ? "field-input--error" : "")"
+                                   placeholder="Ex: João da Silva"
+                                   autofocus
+                                   maxlength="80" />
+                        </div>
+                        @if (nomeErro)
+                        {
+                            <p class="field-error">Por favor insira um nome válido.</p>
+                        }
+                        <button class="btn-primary btn-full" @onclick="AvancarParaCamera" disabled="@string.IsNullOrWhiteSpace(nomeUsuario)">
+                            Continuar para captura
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
+                        </button>
+                    </div>
+
+                    <div class="info-inline">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></svg>
+                        O nome será associado permanentemente à biometria registada
+                    </div>
+                </div>
+            }
+
+            @* ETAPA 2: CÂMERA *@
+            @if (etapa == Etapa.Camera)
+            {
+                <div class="layout animate-in">
+
+                    @* CAMERA PANEL *@
+                    <div class="panel camera-panel">
+                        <div class="panel-header">
+                            <div>
+                                <h2>Captura Facial</h2>
+                                <p>A registar biometria para <strong>@nomeUsuario</strong></p>
+                            </div>
+                            <div class="header-actions">
+                                <button class="btn-ghost-sm" @onclick="VoltarParaNome">← Alterar nome</button>
+                                @if (cameraAtiva)
+                                {
+                                    <button class="btn-danger-sm" @onclick="PararCamera">Desligar</button>
+                                }
+                            </div>
+                        </div>
+
+                        <div class="viewport @EstiloViewport()">
+                            @if (!cameraAtiva)
+                            {
+                                <div class="screen-idle">
+                                    <div class="idle-icon">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4">
+                                            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                                            <circle cx="12" cy="13" r="4" />
+                                        </svg>
+                                    </div>
+                                    <p>Câmera inativa</p>
+                                    <button class="btn-primary" @onclick="IniciarCamera">Ligar câmera</button>
+                                </div>
+                            }
+                            else if (string.IsNullOrEmpty(imageBase64))
+                            {
+                                <div class="screen-loading">
+                                    <div class="spin"></div>
+                                    <p>A iniciar sensor...</p>
+                                </div>
+                            }
+                            else
+                            {
+                                <img src="@imageBase64" class="feed" alt="câmera" />
+
+                                <div class="face-guide @EstiloGuia()">
+                                    <svg class="guide-svg" viewBox="0 0 200 240" fill="none">
+                                        <ellipse cx="100" cy="120" rx="72" ry="90"
+                                                 stroke="currentColor" stroke-width="2.5"
+                                                 stroke-dasharray="@(estadoCaptura == EstadoCaptura.Estavel || estadoCaptura == EstadoCaptura.Capturando ? "0" : "8 6")"
+                                                 fill="none" />
+                                    </svg>
+                                </div>
+
+                                @if (estadoCaptura == EstadoCaptura.Estabilizando)
+                                {
+                                    <div class="progress-bar-wrap">
+                                        <div class="progress-bar" style="width: @((framesEstaveis * 100 / FRAMES_PARA_CAPTURAR))%"></div>
+                                    </div>
+                                }
+
+                                <div class="instruction-pill @EstiloInstrucao()">
+                                    @MensagemInstrucao()
+                                </div>
+                            }
+                        </div>
+
+                        <div class="checklist">
+                            <div class="check-item @(cameraAtiva ? "check-ok" : "")">
+                                <span class="check-dot"></span> Câmera ativa
+                            </div>
+                            <div class="check-item @(estadoCaptura >= EstadoCaptura.Estabilizando ? "check-ok" : "")">
+                                <span class="check-dot"></span> Rosto centrado
+                            </div>
+                            <div class="check-item @(estadoCaptura == EstadoCaptura.Estavel || estadoCaptura == EstadoCaptura.Capturando ? "check-ok" : "")">
+                                <span class="check-dot"></span> Imóvel
+                            </div>
+                            <div class="check-item check-ok">
+                                <span class="check-dot"></span> Nome preenchido
+                            </div>
+                        </div>
+                    </div>
+
+                    @* FORM SIDE *@
+                    <div class="form-side">
+                        <div class="panel">
+                            <div class="panel-header">
+                                <div>
+                                    <h2>Estado da Captura</h2>
+                                    <p>A captura é feita automaticamente</p>
+                                </div>
+                            </div>
+                            <div class="form-body">
+                                <div class="user-badge">
+                                    <div class="user-avatar">
+                                        @nomeUsuario.Substring(0, 1).ToUpper()
+                                    </div>
+                                    <div>
+                                        <p class="user-name">@nomeUsuario</p>
+                                        <p class="user-role">Utilizador a registar</p>
+                                    </div>
+                                </div>
+
+                                <div class="status-processo @EstiloStatusProcesso()">
+                                    <div class="status-icon">
+                                        @if (salvando)
+                                        {
+                                            <div class="spin-sm"></div>
+                                        }
+                                        else if (estadoCaptura >= EstadoCaptura.Estavel)
+                                        {
+                                            <div class="pulse-dot pulse-green"></div>
+                                        }
+                                        else
+                                        {
+                                            <div class="pulse-dot pulse-gray"></div>
+                                        }
+                                    </div>
+                                    <span>@MensagemStatusProcesso()</span>
+                                </div>
+
+                                @if (estadoCaptura == EstadoCaptura.Estabilizando)
+                                {
+                                    <div class="progress-detail">
+                                        <div class="progress-detail-bar">
+                                            <div class="progress-detail-fill" style="width: @((framesEstaveis * 100 / FRAMES_PARA_CAPTURAR))%"></div>
+                                        </div>
+                                        <span class="progress-detail-label">@framesEstaveis / @FRAMES_PARA_CAPTURAR frames estáveis</span>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+
+                        <div class="info-card">
+                            <p class="info-title">Como funciona</p>
+                            <ol class="info-steps">
+                                <li>Posicione o rosto dentro da guia oval</li>
+                                <li>Fique imóvel — o sistema aguarda ~1.5 segundos</li>
+                                <li>A captura e o registo são automáticos</li>
+                            </ol>
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(mensagemFeedback))
+                        {
+                            <div class="feedback-card @(erro ? "feedback--error" : "feedback--success")">
+                                <div class="feedback-icon">
+                                    @if (erro)
+                                    {
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                            <circle cx="12" cy="12" r="10" />
+                                            <path d="M15 9l-6 6M9 9l6 6" />
+                                        </svg>
+                                    }
+                                    else
+                                    {
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                                            <polyline points="22 4 12 14.01 9 11.01" />
+                                        </svg>
+                                    }
+                                </div>
+                                <div class="feedback-text">
+                                    <p class="feedback-title">@(erro ? "Erro" : "Sucesso")</p>
+                                    <p class="feedback-msg">@mensagemFeedback</p>
+                                </div>
+                                <button class="feedback-close" @onclick="() => mensagemFeedback = null">✕</button>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            @* ETAPA 3: CONCLUÍDO *@
+            @if (etapa == Etapa.Concluido)
+            {
+                <div class="card card--centered animate-in">
+                    <div class="card-icon card-icon--success">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                            <polyline points="22 4 12 14.01 9 11.01" />
+                        </svg>
+                    </div>
+                    <h1 class="card-title">Biometria Registada!</h1>
+                    <p class="card-sub">O utilizador <strong>@nomeRegistado</strong> foi adicionado com sucesso ao sistema.</p>
+                    <p class="redirect-hint">A redirecionar em @contagemRegressiva segundos...</p>
+                </div>
+            }
+
+        </div>
+    </main>
+</div>
+
+@code {
+    private enum Etapa { Nome, Camera, Concluido }
+    private enum EstadoCaptura { Aguardando, RostoDetectado, Estabilizando, Estavel, Capturando }
+
+    private const int FRAMES_PARA_CAPTURAR = 45;
+    private const double MARGEM_CENTRO = 0.30;
+    private const double TAMANHO_MIN_ROSTO = 0.15;
+
+    // Debounce: o estado visual só muda após este número de frames consecutivos no mesmo estado
+    private const int FRAMES_DEBOUNCE_SUBIDA = 6;   // frames para "subir" de estado (ex: Aguardando → RostoDetectado)
+    private const int FRAMES_DEBOUNCE_DESCIDA = 10;  // frames para "descer" de estado — mais alto = menos piscar ao perder rosto
+
+    // Limita o render da UI: só faz StateHasChanged a cada N frames, a menos que o estado mude
+    private const int FRAMES_POR_RENDER = 2;
+    private int _framesSemRender = 0;
+
+    private readonly BaseSql baseSql = new();
+    private VideoCapture? camera;
+    private CascadeClassifier? faceDetector;
+    private Mat frame = new Mat();
+    private readonly object frameLock = new object();
+
+    private Etapa etapa = Etapa.Nome;
+    private bool cameraAtiva = false;
+    private CancellationTokenSource? cts;
+    private string imageBase64 = "";
+    private string mensagemFeedback = "";
+    private bool erro = false;
+    private string nomeUsuario = "";
+    private string nomeRegistado = "";
+    private bool salvando = false;
+    private bool primeiroUtilizador = false;
+    private bool nomeErro = false;
+    private int contagemRegressiva = 3;
+
+    protected override void OnInitialized()
+    {
+        var existentes = baseSql.ObterUsuariosComRostos();
+        primeiroUtilizador = existentes == null || !existentes.Any();
+
+        if (!primeiroUtilizador && !estadoApp.EhAdmin)
+        {
+            Navigation.NavigateTo("/", replace: true);
+            return;
+        }
+
+        try
+        {
+            string cascadePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "haarcascade_frontalface_default.xml");
+            if (File.Exists(cascadePath))
+                faceDetector = new CascadeClassifier(cascadePath);
+            else
+            {
+                erro = true;
+                mensagemFeedback = "Ficheiro de deteção facial não encontrado.";
+            }
+        }
+        catch (Exception ex) { erro = true; mensagemFeedback = ex.Message; }
+    }
+
+    private void VoltarParaAdmin() { PararCamera(); Navigation.NavigateTo("/admin"); }
+
+    private async Task OnNomeKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await AvancarParaCamera();
+    }
+
+    private async Task AvancarParaCamera()
+    {
+        if (string.IsNullOrWhiteSpace(nomeUsuario))
+        {
+            nomeErro = true;
+            return;
+        }
+        nomeErro = false;
+        nomeUsuario = nomeUsuario.Trim();
+        etapa = Etapa.Camera;
+        StateHasChanged();
+        await Task.Delay(50); // permite render antes de iniciar câmera
+        await IniciarCamera();
+    }
+
+    private void VoltarParaNome()
+    {
+        PararCamera();
+        etapa = Etapa.Nome;
+        mensagemFeedback = "";
+        erro = false;
+        StateHasChanged();
+    }
+
+    private async Task IniciarCamera()
+    {
+        if (cameraAtiva) return;
+        try
+        {
+            camera ??= new VideoCapture(0, VideoCapture.API.Any);
+            if (!camera.IsOpened) throw new Exception("Câmera não disponível.");
+            camera.Set(CapProp.FrameWidth, 1280);
+            camera.Set(CapProp.FrameHeight, 720);
+            cameraAtiva = true;
+            cts = new CancellationTokenSource();
+            _ = Task.Run(() => LoopDeCaptura(cts.Token));
+        }
+        catch (Exception ex)
+        {
+            erro = true;
+            mensagemFeedback = $"Erro ao iniciar câmera: {ex.Message}";
+            cameraAtiva = false;
+            camera?.Dispose();
+            camera = null;
+        }
+    }
+
+    private void PararCamera()
+    {
+        cameraAtiva = false;
+        cts?.Cancel();
+        cts?.Dispose();
+        cts = null;
+        Thread.Sleep(200);
+
+        lock (frameLock)
+        {
+            camera?.Dispose();
+            camera = null;
+            frame?.Dispose();
+            frame = new Mat();
+        }
+
+        imageBase64 = "";
+        estadoCaptura = EstadoCaptura.Aguardando;
+        framesEstaveis = 0;
+        capturaPendente = false;
+        salvando = false;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private EstadoCaptura estadoCaptura = EstadoCaptura.Aguardando;       // estado visível na UI
+    private EstadoCaptura _estadoCandidato = EstadoCaptura.Aguardando;    // estado "raw" do detector
+    private int _framesCandidato = 0;                                      // quantos frames consecutivos no estado candidato
+    private int framesEstaveis = 0;
+    private bool capturaPendente = false;
+
+    private async Task LoopDeCaptura(CancellationToken token)
+    {
+        while (!token.IsCancellationRequested && cameraAtiva)
+        {
+            try
+            {
+                Mat? captured = null;
+
+                // Usa Mat local — evita corrupção de memória com Mat partilhado
+                using (Mat localFrame = new Mat())
+                {
+                    bool leituraOk = false;
+
+                    lock (frameLock)
+                    {
+                        if (camera != null && camera.IsOpened)
+                        {
+                            camera.Read(localFrame);
+                            leituraOk = !localFrame.IsEmpty;
+
+                            // Atualiza o frame de instância para SalvarRostoAutomatico
+                            if (leituraOk)
+                            {
+                                frame?.Dispose();
+                                frame = localFrame.Clone();
+                            }
+                        }
+                    }
+
+                    if (!leituraOk)
+                    {
+                        await Task.Delay(33, token);
+                        continue;
+                    }
+
+                    captured = localFrame.Clone();
+                }
+
+                if (captured != null)
+                {
+                    using (captured)
+                    using (Mat gray = new())
+                    using (Mat grayNorm = new())
+                    {
+                        CvInvoke.CvtColor(captured, gray, ColorConversion.Bgr2Gray);
+
+                        // EqualizeHist + suavização leve — compatível com todas as versões Emgu.CV
+                        CvInvoke.EqualizeHist(gray, grayNorm);
+                        CvInvoke.GaussianBlur(grayNorm, grayNorm, new Size(3, 3), 0);
+
+                        Rectangle[] faces = faceDetector?.DetectMultiScale(
+                            grayNorm, 1.2, 6, new Size(120, 120)) ?? Array.Empty<Rectangle>();
+
+                        var avaliacaoRaw = AvaliarRosto(faces, captured.Width, captured.Height);
+
+                        // ── DEBOUNCE DE ESTADO ──────────────────────────────────────────
+                        // O estado "raw" do detector oscila muito. Só promovemos para a UI
+                        // quando o mesmo estado se mantém N frames consecutivos.
+                        // Para subir (melhorar estado) exige menos frames do que para descer,
+                        // o que torna a UI mais rápida a reagir positivamente mas mais lenta
+                        // a "desistir" — elimina o efeito de piscar ao perder o rosto por 1-2 frames.
+
+                        if (avaliacaoRaw == _estadoCandidato)
+                        {
+                            _framesCandidato++;
+                        }
+                        else
+                        {
+                            _estadoCandidato = avaliacaoRaw;
+                            _framesCandidato = 1;
+                        }
+
+                        bool estadoMudou = false;
+                        int limiar = avaliacaoRaw > estadoCaptura
+                            ? FRAMES_DEBOUNCE_SUBIDA   // a melhorar → reage rápido
+                            : FRAMES_DEBOUNCE_DESCIDA; // a piorar  → reage devagar (anti-piscar)
+
+                        EstadoCaptura estadoFinal = estadoCaptura; // mantém o anterior por defeito
+
+                        if (_framesCandidato >= limiar)
+                        {
+                            estadoFinal = avaliacaoRaw;
+                            if (estadoFinal != estadoCaptura) estadoMudou = true;
+                        }
+
+                        // ── FRAMES ESTÁVEIS (para captura automática) ──────────────────
+                        // Usa o estado raw para o contador interno, mas só quando o estado
+                        // visual já está em Estabilizando ou melhor (evita incrementar em ruído)
+                        if (estadoFinal >= EstadoCaptura.Estabilizando && avaliacaoRaw >= EstadoCaptura.Estabilizando)
+                            framesEstaveis = Math.Min(framesEstaveis + 1, FRAMES_PARA_CAPTURAR);
+                        else if (avaliacaoRaw < EstadoCaptura.Estabilizando)
+                            framesEstaveis = Math.Max(framesEstaveis - 2, 0); // decresce devagar
+
+                        if (framesEstaveis >= FRAMES_PARA_CAPTURAR)
+                            estadoFinal = EstadoCaptura.Estavel;
+
+                        if (estadoFinal != estadoCaptura) estadoMudou = true;
+
+                        // Desenha retângulo apenas quando temos rosto estável (não em ruído)
+                        if (faces.Length > 0 && estadoFinal >= EstadoCaptura.RostoDetectado)
+                            CvInvoke.Rectangle(captured, faces[0], new MCvScalar(255, 255, 255), 2);
+
+                        string base64 = MatToBase64(captured);
+
+                        bool deveCapturar = estadoFinal == EstadoCaptura.Estavel
+                                            && !salvando
+                                            && !capturaPendente;
+
+                        // ── THROTTLE DE RENDER ─────────────────────────────────────────
+                        // Só chama StateHasChanged se o estado mudou OU passaram N frames.
+                        // A imagem da câmera atualiza sempre, mas re-renders pesados são limitados.
+                        _framesSemRender++;
+                        bool deveRender = estadoMudou || _framesSemRender >= FRAMES_POR_RENDER;
+
+                        await InvokeAsync(() =>
+                        {
+                            imageBase64 = base64;
+                            estadoCaptura = estadoFinal;
+                            if (deveRender)
+                            {
+                                _framesSemRender = 0;
+                                StateHasChanged();
+                            }
+                        });
+
+                        if (deveCapturar)
+                        {
+                            capturaPendente = true;
+                            await InvokeAsync(() => SalvarRostoAutomatico());
+                        }
+                    }
+                }
+
+                await Task.Delay(33, token);
+            }
+            catch (TaskCanceledException) { break; }
+            catch { }
+        }
+    }
+
+    private EstadoCaptura AvaliarRosto(Rectangle[] faces, int largura, int altura)
+    {
+        if (faces.Length == 0) return EstadoCaptura.Aguardando;
+        var face = faces[0];
+        if ((double)face.Width / largura < TAMANHO_MIN_ROSTO)
+            return EstadoCaptura.RostoDetectado;
+        double cx = (face.X + face.Width / 2.0) / largura;
+        double cy = (face.Y + face.Height / 2.0) / altura;
+        if (Math.Abs(cx - 0.5) > MARGEM_CENTRO || Math.Abs(cy - 0.5) > MARGEM_CENTRO)
+            return EstadoCaptura.RostoDetectado;
+        return EstadoCaptura.Estabilizando;
+    }
+
+    private async Task SalvarRostoAutomatico()
+    {
+        if (salvando) return;
+        estadoCaptura = EstadoCaptura.Capturando;
+        salvando = true;
+        mensagemFeedback = "";
+        erro = false;
+        StateHasChanged();
+
+        Mat snapshot;
+        lock (frameLock)
+        {
+            if (frame == null || frame.IsEmpty)
+            {
+                MostrarErro("Frame vazio no momento da captura. Tente novamente.");
+                return;
+            }
+            snapshot = frame.Clone();
+        }
+
+        try
+        {
+            using (snapshot)
+            using (Mat gray = new())
+            using (Mat grayNorm = new())
+            {
+                CvInvoke.CvtColor(snapshot, gray, ColorConversion.Bgr2Gray);
+                CvInvoke.EqualizeHist(gray, grayNorm);
+                CvInvoke.GaussianBlur(grayNorm, grayNorm, new Size(3, 3), 0);
+
+                var faces = faceDetector?.DetectMultiScale(grayNorm, 1.1, 3, new Size(60, 60))
+                            ?? Array.Empty<Rectangle>();
+
+                if (faces.Length == 0)
+                {
+                    MostrarErro("Nenhum rosto encontrado na foto capturada. Reposicione e aguarde.");
+                    return;
+                }
+
+                var area = faces[0];
+                if (area.Width < 40 || area.Height < 40)
+                {
+                    MostrarErro("Rosto muito pequeno. Aproxime-se da câmera.");
+                    return;
+                }
+
+                using Mat rostoBase = new(grayNorm, area);
+                using Mat rostoResized = new();
+                CvInvoke.Resize(rostoBase, rostoResized, new Size(200, 200));
+
+                List<Mat> variacoes = GerarVariacoesDeRosto(rostoResized);
+                string nomeParaSalvar = nomeUsuario.Trim();
+
+                await Task.Run(() =>
+                {
+                    int uid = baseSql.ObterUsuarioIdPorNome(nomeParaSalvar);
+                    if (uid == 0) uid = baseSql.CriarUsuario(nomeParaSalvar);
+                    foreach (var img in variacoes)
+                    {
+                        using VectorOfByte vb = new();
+                        CvInvoke.Imencode(".jpg", img, vb);
+                        baseSql.InserirRosto(uid, vb.ToArray());
+                        img.Dispose();
+                    }
+                });
+
+                nomeRegistado = nomeParaSalvar;
+                PararCamera();
+
+                await InvokeAsync(async () =>
+                {
+                    etapa = Etapa.Concluido;
+                    StateHasChanged();
+
+                    // Contagem regressiva antes de redirecionar
+                    for (int i = 3; i >= 1; i--)
+                    {
+                        contagemRegressiva = i;
+                        StateHasChanged();
+                        await Task.Delay(1000);
+                    }
+
+                    Navigation.NavigateTo(primeiroUtilizador ? "/" : "/admin", replace: true);
+                });
+            }
+        }
+        catch (Exception ex) { MostrarErro($"Erro ao processar biometria: {ex.Message}"); }
+    }
+
+    private void MostrarErro(string msg)
+    {
+        erro = true;
+        mensagemFeedback = msg;
+        salvando = false;
+        capturaPendente = false;
+        framesEstaveis = 0;
+        estadoCaptura = EstadoCaptura.Aguardando;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private List<Mat> GerarVariacoesDeRosto(Mat img)
+    {
+        // img já chegou como 200x200 grayscale normalizado
+        var lista = new List<Mat>();
+        var imgSize = new Size(200, 200);
+        var center = new PointF(100f, 100f);
+
+        // Normaliza e adiciona à lista — EqualizeHist exige dst pré-alocado igual ao src
+        void Adicionar(Mat src)
+        {
+            using Mat resized = new();
+            // Garante sempre 200x200 antes de equalizar (protege contra escala)
+            if (src.Width != 200 || src.Height != 200)
+                CvInvoke.Resize(src, resized, imgSize);
+            else
+                src.CopyTo(resized);
+
+            Mat eq = new Mat(imgSize, src.Depth, 1);
+            CvInvoke.EqualizeHist(resized, eq);
+            lista.Add(eq); // transfere ownership — não usar using aqui
+        }
+
+        // Cria matriz de transformação 2D (rotação + escala)
+        Mat CriarMatriz(double angulo, double escala)
+        {
+            Mat m = new Mat();
+            CvInvoke.GetRotationMatrix2D(center, angulo, escala, m);
+            return m;
+        }
+
+        // Aplica WarpAffine sempre para imgSize e chama Adicionar
+        void AdicionarWarp(Mat src, Mat matrix)
+        {
+            using Mat warped = new Mat(imgSize, src.Depth, 1);
+            CvInvoke.WarpAffine(src, warped, matrix, imgSize,
+                Inter.Linear, Warp.Default, BorderType.Replicate);
+            Adicionar(warped);
+        }
+
+        // ── 1. ORIGINAL ───────────────────────────────────────────────────────
+        Adicionar(img);
+
+        // ── 2. ESPELHO HORIZONTAL ─────────────────────────────────────────────
+        using Mat flipBase = new Mat(imgSize, img.Depth, 1);
+        CvInvoke.Flip(img, flipBase, FlipType.Horizontal);
+        Adicionar(flipBase);
+
+        // ── 3–10. ROTAÇÕES IN-PLANE ───────────────────────────────────────────
+        foreach (int ang in new[] { -25, -15, -8, -4, 4, 8, 15, 25 })
+        {
+            using Mat m = CriarMatriz(ang, 1.0);
+            AdicionarWarp(img, m);
+        }
+
+        // ── 11–16. BRILHO E CONTRASTE ─────────────────────────────────────────
+        foreach ((double alpha, int beta) in new (double, int)[]
+        {
+            (0.60,   0),
+            (0.80,   0),
+            (1.20,   0),
+            (1.45,   0),
+            (1.00, -30),
+            (1.00,  30),
+        })
+        {
+            using Mat bright = new Mat(imgSize, img.Depth, 1);
+            img.ConvertTo(bright, DepthType.Cv8U, alpha, beta);
+            Adicionar(bright);
+        }
+
+        // ── 17–20. ESCALA (distância à câmera) ────────────────────────────────
+        // WarpAffine com escala != 1 não muda o tamanho do dst — imgSize mantém-se 200x200
+        foreach (double scale in new[] { 0.80, 0.90, 1.10, 1.20 })
+        {
+            using Mat m = CriarMatriz(0, scale);
+            AdicionarWarp(img, m);
+        }
+
+        // ── 21–22. BLUR ───────────────────────────────────────────────────────
+        foreach (int k in new[] { 3, 5 })
+        {
+            using Mat blurred = new Mat(imgSize, img.Depth, 1);
+            CvInvoke.GaussianBlur(img, blurred, new Size(k, k), 0);
+            Adicionar(blurred);
+        }
+
+        // ── 23. NITIDEZ (sharpen) ─────────────────────────────────────────────
+        using (Mat sharp = new Mat(imgSize, img.Depth, 1))
+        {
+            float[] kData = { 0, -1, 0, -1, 5, -1, 0, -1, 0 };
+            using Mat kernelMat = new Mat(3, 3, DepthType.Cv32F, 1);
+            System.Runtime.InteropServices.Marshal.Copy(kData, 0, kernelMat.DataPointer, 9);
+            CvInvoke.Filter2D(img, sharp, kernelMat, new Point(-1, -1));
+            CvInvoke.Threshold(sharp, sharp, 255, 255, ThresholdType.Trunc);
+            CvInvoke.Threshold(sharp, sharp, 0, 0, ThresholdType.ToZero);
+            Adicionar(sharp);
+        }
+
+        // ── 24. RUÍDO GAUSSIANO ───────────────────────────────────────────────
+        using (Mat noisy = img.Clone())
+        using (Mat noiseLayer = new Mat(imgSize, img.Depth, 1))
+        {
+            CvInvoke.Randn(noiseLayer, new MCvScalar(0), new MCvScalar(18));
+            CvInvoke.Add(noisy, noiseLayer, noisy);
+            Adicionar(noisy);
+        }
+
+        // ── 25–28. COMBINAÇÃO: rotação + brilho ───────────────────────────────
+        foreach ((int ang, double alpha) in new (int, double)[]
+        {
+            (-12, 0.75), ( 12, 0.75),
+            (-12, 1.30), ( 12, 1.30),
+        })
+        {
+            using Mat m = CriarMatriz(ang, 1.0);
+            using Mat rotMat = new Mat(imgSize, img.Depth, 1);
+            CvInvoke.WarpAffine(img, rotMat, m, imgSize,
+                Inter.Linear, Warp.Default, BorderType.Replicate);
+            using Mat bright = new Mat(imgSize, img.Depth, 1);
+            rotMat.ConvertTo(bright, DepthType.Cv8U, alpha, 0);
+            Adicionar(bright);
+        }
+
+        // ── 29–30. COMBINAÇÃO: espelho + rotação ──────────────────────────────
+        foreach (int ang in new[] { -10, 10 })
+        {
+            using Mat m = CriarMatriz(ang, 1.0);
+            AdicionarWarp(flipBase, m);
+        }
+
+        // ── 31–32. BLUR FORTE + FLIP ──────────────────────────────────────────
+        using (Mat softBlur = new Mat(imgSize, img.Depth, 1))
+        {
+            CvInvoke.GaussianBlur(img, softBlur, new Size(5, 5), 0);
+            Adicionar(softBlur);
+
+            using Mat softFlip = new Mat(imgSize, img.Depth, 1);
+            CvInvoke.Flip(softBlur, softFlip, FlipType.Horizontal);
+            Adicionar(softFlip);
+        }
+
+        return lista;
+        // Total: ~32 variações por captura
+    }
+
+    private string MatToBase64(Mat mat)
+    {
+        if (mat.IsEmpty) return "";
+        using VectorOfByte vb = new();
+        CvInvoke.Imencode(".jpg", mat, vb);
+        return "data:image/jpeg;base64," + Convert.ToBase64String(vb.ToArray());
+    }
+
+    private string EstiloViewport() => estadoCaptura switch
+    {
+        EstadoCaptura.Estavel or EstadoCaptura.Capturando => "viewport--ready",
+        EstadoCaptura.Estabilizando => "viewport--stabilizing",
+        EstadoCaptura.RostoDetectado => "viewport--detected",
+        _ => ""
+    };
+    private string EstiloGuia() => estadoCaptura switch
+    {
+        EstadoCaptura.Estavel or EstadoCaptura.Capturando => "guide--ready",
+        EstadoCaptura.Estabilizando => "guide--stabilizing",
+        EstadoCaptura.RostoDetectado => "guide--detected",
+        _ => "guide--idle"
+    };
+    private string EstiloInstrucao() => estadoCaptura switch
+    {
+        EstadoCaptura.Estavel or EstadoCaptura.Capturando => "instr--green",
+        EstadoCaptura.Estabilizando => "instr--blue",
+        EstadoCaptura.RostoDetectado => "instr--amber",
+        _ => "instr--neutral"
+    };
+    private string EstiloStatusProcesso() => estadoCaptura switch
+    {
+        EstadoCaptura.Estavel or EstadoCaptura.Capturando => "status-green",
+        EstadoCaptura.Estabilizando => "status-blue",
+        _ => "status-neutral"
+    };
+    private string MensagemInstrucao() => estadoCaptura switch
+    {
+        EstadoCaptura.Capturando => "A capturar...",
+        EstadoCaptura.Estavel => "A capturar em breve...",
+        EstadoCaptura.Estabilizando => "Fique imóvel...",
+        EstadoCaptura.RostoDetectado => "Centre o rosto na guia",
+        _ => "Posicione o rosto na guia oval"
+    };
+    private string MensagemStatusProcesso()
+    {
+        if (salvando) return "A processar e guardar biometria...";
+        return estadoCaptura switch
+        {
+            EstadoCaptura.Capturando => "A capturar automaticamente...",
+            EstadoCaptura.Estavel => "Pronto para capturar!",
+            EstadoCaptura.Estabilizando => $"A estabilizar... ({framesEstaveis}/{FRAMES_PARA_CAPTURAR} frames)",
+            EstadoCaptura.RostoDetectado => "Centre o rosto na guia oval",
+            _ => "Aguardando rosto na câmera..."
+        };
+    }
+
+    public void Dispose()
+    {
+        PararCamera();
+        faceDetector?.Dispose();
+    }
+}
+
+@* CSS *@
+<style>
+    @@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap');
+
+    *, *::before, *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+    }
+
+    :root {
+        --bg: #f0f2f5;
+        --surface: #ffffff;
+        --border: #e2e5ea;
+        --text: #111318;
+        --muted: #6b7280;
+        --dim: #9ca3af;
+        --accent: #1a56db;
+        --green: #16a34a;
+        --green-bg: #f0fdf4;
+        --green-br: #bbf7d0;
+        --red: #dc2626;
+        --red-bg: #fef2f2;
+        --red-br: #fecaca;
+        --amber: #d97706;
+        --amber-bg: #fffbeb;
+        --amber-br: #fde68a;
+        --blue-bg: #eff6ff;
+        --blue-br: #bfdbfe;
+        --radius: 12px;
+        --shadow: 0 4px 24px rgba(0,0,0,0.07);
+    }
+
+    body {
+        font-family: 'DM Sans', sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        -webkit-font-smoothing: antialiased;
+        min-height: 100vh;
+    }
+
+    .page {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* ── TOPBAR ── */
+    .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 18px 32px;
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+    }
+
+    .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 16px;
+        font-weight: 600;
+        letter-spacing: -0.3px;
+    }
+
+    .brand-lock {
+        width: 32px;
+        height: 32px;
+        background: var(--text);
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        flex-shrink: 0;
+    }
+
+        .brand-lock svg {
+            width: 16px;
+            height: 16px;
+        }
+
+    .btn-outline {
+        padding: 8px 16px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: transparent;
+        font-size: 13px;
+        font-weight: 500;
+        font-family: 'DM Sans', sans-serif;
+        color: var(--muted);
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+
+        .btn-outline:hover {
+            border-color: var(--text);
+            color: var(--text);
+            background: var(--bg);
+        }
+
+    .topbar-hint {
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--amber);
+        background: var(--amber-bg);
+        border: 1px solid var(--amber-br);
+        border-radius: 8px;
+        padding: 7px 14px;
+    }
+
+    /* ── WIZARD ── */
+    .center {
+        flex: 1;
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        padding: 36px 24px;
+    }
+
+    .wizard {
+        width: 100%;
+        max-width: 980px;
+        display: flex;
+        flex-direction: column;
+        gap: 28px;
+    }
+
+    /* ── STEPS BAR ── */
+    .steps-bar {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0;
+        padding: 0 24px;
+    }
+
+    .step {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+        opacity: 0.35;
+        transition: opacity 0.3s;
+    }
+
+    .step--active, .step--done {
+        opacity: 1;
+    }
+
+    .step-circle {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        border: 2px solid var(--border);
+        background: var(--surface);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--dim);
+        transition: all 0.3s;
+    }
+
+    .step--active .step-circle {
+        border-color: var(--accent);
+        color: var(--accent);
+        background: var(--blue-bg);
+    }
+
+    .step--done .step-circle {
+        border-color: var(--green);
+        background: var(--green);
+        color: white;
+    }
+
+        .step--done .step-circle svg {
+            width: 14px;
+            height: 14px;
+        }
+
+    .step-label {
+        font-size: 11px;
+        font-weight: 500;
+        color: var(--muted);
+        white-space: nowrap;
+    }
+
+    .step--active .step-label {
+        color: var(--accent);
+    }
+
+    .step--done .step-label {
+        color: var(--green);
+    }
+
+    .step-connector {
+        flex: 1;
+        height: 2px;
+        background: var(--border);
+        margin: 0 8px;
+        margin-bottom: 22px;
+        max-width: 120px;
+        transition: background 0.3s;
+    }
+
+    .connector--done {
+        background: var(--green);
+    }
+
+    /* ── CARD (Etapa 1 & 3) ── */
+    .card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        padding: 48px 40px;
+    }
+
+    .card--centered {
+        max-width: 480px;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        gap: 16px;
+    }
+
+    .card-icon {
+        width: 64px;
+        height: 64px;
+        border-radius: 16px;
+        background: var(--blue-bg);
+        border: 1px solid var(--blue-br);
+        color: var(--accent);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 4px;
+    }
+
+        .card-icon svg {
+            width: 28px;
+            height: 28px;
+        }
+
+    .card-icon--success {
+        background: var(--green-bg);
+        border-color: var(--green-br);
+        color: var(--green);
+    }
+
+    .card-title {
+        font-size: 22px;
+        font-weight: 600;
+        letter-spacing: -0.5px;
+    }
+
+    .card-sub {
+        font-size: 14px;
+        color: var(--muted);
+        line-height: 1.6;
+        max-width: 360px;
+    }
+
+    .redirect-hint {
+        font-size: 13px;
+        color: var(--dim);
+        margin-top: 8px;
+    }
+
+    /* ── NAME FORM ── */
+    .name-form {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        margin-top: 8px;
+    }
+
+    .field-wrapper {
+        position: relative;
+    }
+
+    .field-icon {
+        position: absolute;
+        left: 13px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 15px;
+        height: 15px;
+        color: var(--dim);
+        pointer-events: none;
+    }
+
+    .field-input {
+        width: 100%;
+        padding: 12px 13px 12px 40px;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        font-size: 15px;
+        font-family: 'DM Sans', sans-serif;
+        color: var(--text);
+        outline: none;
+        transition: border-color 0.15s, box-shadow 0.15s;
+    }
+
+        .field-input::placeholder {
+            color: var(--dim);
+        }
+
+        .field-input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(26,86,219,0.1);
+        }
+
+    .field-input--error {
+        border-color: var(--red);
+        box-shadow: 0 0 0 3px rgba(220,38,38,0.1);
+    }
+
+    .field-error {
+        font-size: 12px;
+        color: var(--red);
+        text-align: left;
+    }
+
+    .btn-full {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .info-inline {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        font-size: 12px;
+        color: var(--dim);
+    }
+
+        .info-inline svg {
+            width: 14px;
+            height: 14px;
+            flex-shrink: 0;
+        }
+
+    /* ── LAYOUT (Etapa 2) ── */
+    .layout {
+        display: grid;
+        grid-template-columns: 1fr 360px;
+        gap: 24px;
+        align-items: start;
+    }
+
+    /* ── PANEL ── */
+    .panel {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+    }
+
+    .panel-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        padding: 20px 24px;
+        border-bottom: 1px solid var(--border);
+    }
+
+        .panel-header h2 {
+            font-size: 16px;
+            font-weight: 600;
+            letter-spacing: -0.3px;
+        }
+
+        .panel-header p {
+            font-size: 13px;
+            color: var(--muted);
+            margin-top: 2px;
+        }
+
+        .panel-header strong {
+            color: var(--text);
+        }
+
+    .header-actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+    }
+
+    .btn-ghost-sm {
+        padding: 6px 12px;
+        border-radius: 7px;
+        font-size: 12px;
+        font-weight: 500;
+        font-family: 'DM Sans', sans-serif;
+        color: var(--muted);
+        background: transparent;
+        border: 1px solid var(--border);
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+
+        .btn-ghost-sm:hover {
+            color: var(--text);
+            border-color: var(--text);
+        }
+
+    .btn-danger-sm {
+        padding: 6px 14px;
+        border-radius: 7px;
+        font-size: 12px;
+        font-weight: 600;
+        font-family: 'DM Sans', sans-serif;
+        color: var(--red);
+        background: var(--red-bg);
+        border: 1px solid var(--red-br);
+        cursor: pointer;
+        transition: all 0.15s;
+        white-space: nowrap;
+    }
+
+        .btn-danger-sm:hover {
+            background: #fde8e8;
+        }
+
+    /* ── VIEWPORT ── */
+    .viewport {
+        aspect-ratio: 16 / 9;
+        background: #111;
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        transition: box-shadow 0.3s;
+    }
+
+    .viewport--detected {
+        box-shadow: inset 0 0 0 2px rgba(217,119,6,0.5);
+    }
+
+    .viewport--stabilizing {
+        box-shadow: inset 0 0 0 2px rgba(26,86,219,0.5);
+    }
+
+    .viewport--ready {
+        box-shadow: inset 0 0 0 3px rgba(22,163,74,0.6);
+    }
+
+    .feed {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+    }
+
+    .face-guide {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 38%;
+        pointer-events: none;
+        transition: color 0.3s, filter 0.3s;
+    }
+
+    .guide-svg {
+        width: 100%;
+        height: auto;
+        display: block;
+    }
+
+    .guide--idle {
+        color: rgba(255,255,255,0.25);
+    }
+
+    .guide--detected {
+        color: rgba(217,119,6,0.8);
+    }
+
+    .guide--stabilizing {
+        color: rgba(96,165,250,0.9);
+        animation: pulse-oval 1s ease-in-out infinite;
+    }
+
+    .guide--ready {
+        color: rgba(34,197,94,0.95);
+        filter: drop-shadow(0 0 6px rgba(34,197,94,0.5));
+    }
+
+    @@keyframes pulse-oval {
+        0%, 100% {
+            opacity: 1;
+        }
+
+        50% {
+            opacity: 0.6;
+        }
+    }
+
+    .progress-bar-wrap {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: rgba(255,255,255,0.1);
+    }
+
+    .progress-bar {
+        height: 100%;
+        background: var(--accent);
+        transition: width 0.1s linear;
+    }
+
+    .instruction-pill {
+        position: absolute;
+        bottom: 16px;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 6px 16px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 600;
+        backdrop-filter: blur(6px);
+        white-space: nowrap;
+        transition: all 0.25s;
+    }
+
+    .instr--neutral {
+        background: rgba(0,0,0,0.45);
+        color: rgba(255,255,255,0.8);
+        border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .instr--amber {
+        background: rgba(217,119,6,0.2);
+        color: #fbbf24;
+        border: 1px solid rgba(217,119,6,0.4);
+    }
+
+    .instr--blue {
+        background: rgba(26,86,219,0.2);
+        color: #93c5fd;
+        border: 1px solid rgba(26,86,219,0.4);
+    }
+
+    .instr--green {
+        background: rgba(22,163,74,0.2);
+        color: #4ade80;
+        border: 1px solid rgba(22,163,74,0.4);
+    }
+
+    .screen-idle {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 14px;
+        padding: 48px 32px;
+        text-align: center;
+    }
+
+    .idle-icon {
+        width: 64px;
+        height: 64px;
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: rgba(255,255,255,0.3);
+    }
+
+        .idle-icon svg {
+            width: 32px;
+            height: 32px;
+        }
+
+    .screen-idle p {
+        font-size: 14px;
+        color: rgba(255,255,255,0.4);
+    }
+
+    .screen-loading {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 14px;
+        color: rgba(255,255,255,0.4);
+        font-size: 13px;
+    }
+
+    /* ── CHECKLIST ── */
+    .checklist {
+        display: flex;
+        border-top: 1px solid var(--border);
+    }
+
+    .check-item {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        padding: 11px 6px;
+        font-size: 11px;
+        font-weight: 500;
+        color: var(--dim);
+        border-right: 1px solid var(--border);
+        transition: color 0.2s;
+    }
+
+        .check-item:last-child {
+            border-right: none;
+        }
+
+        .check-item.check-ok {
+            color: var(--green);
+        }
+
+    .check-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: currentColor;
+        opacity: 0.4;
+        transition: opacity 0.2s;
+        flex-shrink: 0;
+    }
+
+    .check-ok .check-dot {
+        opacity: 1;
+    }
+
+    /* ── FORM SIDE ── */
+    .form-side {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .form-body {
+        padding: 20px 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    /* ── USER BADGE ── */
+    .user-badge {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 14px;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+    }
+
+    .user-avatar {
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        background: var(--accent);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+        font-weight: 600;
+        flex-shrink: 0;
+    }
+
+    .user-name {
+        font-size: 14px;
+        font-weight: 600;
+    }
+
+    .user-role {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 1px;
+    }
+
+    /* ── STATUS ── */
+    .status-processo {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 14px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--bg);
+        font-size: 13px;
+        color: var(--muted);
+        transition: all 0.25s;
+    }
+
+    .status-green {
+        background: var(--green-bg);
+        border-color: var(--green-br);
+        color: var(--green);
+    }
+
+    .status-blue {
+        background: var(--blue-bg);
+        border-color: var(--blue-br);
+        color: var(--accent);
+    }
+
+    .status-neutral {
+        background: var(--bg);
+        border-color: var(--border);
+        color: var(--muted);
+    }
+
+    .status-icon {
+        width: 18px;
+        height: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .pulse-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+    }
+
+    .pulse-green {
+        background: var(--green);
+        animation: pulse-dot 1.2s ease-in-out infinite;
+    }
+
+    .pulse-gray {
+        background: var(--dim);
+    }
+
+    @@keyframes pulse-dot {
+        0%, 100% {
+            transform: scale(1);
+            opacity: 1;
+        }
+
+        50% {
+            transform: scale(1.3);
+            opacity: 0.6;
+        }
+    }
+
+    /* ── PROGRESS DETAIL ── */
+    .progress-detail {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .progress-detail-bar {
+        height: 5px;
+        background: var(--blue-br);
+        border-radius: 999px;
+        overflow: hidden;
+    }
+
+    .progress-detail-fill {
+        height: 100%;
+        background: var(--accent);
+        border-radius: 999px;
+        transition: width 0.1s linear;
+    }
+
+    .progress-detail-label {
+        font-size: 11px;
+        color: var(--accent);
+        font-weight: 500;
+    }
+
+    /* ── BUTTONS ── */
+    .btn-primary {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 20px;
+        background: var(--accent);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        font-family: 'DM Sans', sans-serif;
+        cursor: pointer;
+        transition: all 0.15s;
+        box-shadow: 0 2px 8px rgba(26,86,219,0.2);
+    }
+
+        .btn-primary:hover:not(:disabled) {
+            background: #1648c0;
+            transform: translateY(-1px);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-primary svg {
+            width: 15px;
+            height: 15px;
+        }
+
+    /* ── INFO CARD ── */
+    .info-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 18px 20px;
+        box-shadow: var(--shadow);
+    }
+
+    .info-title {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text);
+        margin-bottom: 10px;
+    }
+
+    .info-steps {
+        list-style: none;
+        counter-reset: step;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+        .info-steps li {
+            counter-increment: step;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            font-size: 13px;
+            color: var(--muted);
+            line-height: 1.5;
+        }
+
+            .info-steps li::before {
+                content: counter(step);
+                min-width: 20px;
+                height: 20px;
+                background: var(--bg);
+                border: 1px solid var(--border);
+                border-radius: 6px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 11px;
+                font-weight: 600;
+                color: var(--dim);
+                flex-shrink: 0;
+                margin-top: 1px;
+            }
+
+    /* ── SPINNERS ── */
+    .spin, .spin-sm {
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+        flex-shrink: 0;
+    }
+
+    .spin {
+        width: 28px;
+        height: 28px;
+        border: 2px solid rgba(255,255,255,0.1);
+        border-top-color: var(--accent);
+    }
+
+    .spin-sm {
+        width: 14px;
+        height: 14px;
+        border: 2px solid currentColor;
+        border-top-color: transparent;
+        opacity: 0.7;
+    }
+
+    @@keyframes spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    /* ── FEEDBACK ── */
+    .feedback-card {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 14px 16px;
+        border-radius: var(--radius);
+        border: 1px solid;
+        animation: slideIn 0.2s ease;
+    }
+
+    @@keyframes slideIn {
+        from {
+            opacity: 0;
+            transform: translateY(-6px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .feedback--success {
+        background: var(--green-bg);
+        border-color: var(--green-br);
+        color: var(--green);
+    }
+
+    .feedback--error {
+        background: var(--red-bg);
+        border-color: var(--red-br);
+        color: var(--red);
+    }
+
+    .feedback-icon {
+        flex-shrink: 0;
+        width: 18px;
+        height: 18px;
+        margin-top: 1px;
+    }
+
+        .feedback-icon svg {
+            width: 100%;
+            height: 100%;
+        }
+
+    .feedback-text {
+        flex: 1;
+    }
+
+    .feedback-title {
+        font-size: 13px;
+        font-weight: 600;
+        margin-bottom: 2px;
+    }
+
+    .feedback-msg {
+        font-size: 13px;
+        opacity: 0.85;
+    }
+
+    .feedback-close {
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: currentColor;
+        opacity: 0.5;
+        font-size: 13px;
+        padding: 0;
+        transition: opacity 0.15s;
+        margin-left: auto;
+    }
+
+        .feedback-close:hover {
+            opacity: 1;
+        }
+
+    /* ── ANIMATE IN ── */
+    .animate-in {
+        animation: animateIn 0.25s ease both;
+    }
+
+    @@keyframes animateIn {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    /* ── RESPONSIVE ── */
+    @@media (max-width: 820px) {
+        .layout {
+            grid-template-columns: 1fr;
+            max-width: 560px;
+            margin: 0 auto;
+        }
+
+        .camera-panel {
+            order: 1;
+        }
+
+        .form-side {
+            order: 2;
+        }
+    }
+
+    @@media (max-width: 600px) {
+        .topbar {
+            padding: 14px 20px;
+        }
+
+        .center {
+            padding: 20px 16px;
+        }
+
+        .card {
+            padding: 32px 24px;
+        }
+
+        .checklist {
+            flex-wrap: wrap;
+        }
+
+        .check-item {
+            min-width: 50%;
+            border-bottom: 1px solid var(--border);
+        }
+
+            .check-item:nth-child(odd) {
+                border-right: 1px solid var(--border);
+            }
+
+        .steps-bar {
+            padding: 0;
+        }
+
+        .step-connector {
+            max-width: 60px;
+        }
+    }
+</style>
