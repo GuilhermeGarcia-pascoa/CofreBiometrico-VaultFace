@@ -4,6 +4,8 @@
 @inject EstadoApp Estado
 @rendermode InteractiveServer
 
+@using SProjetoPapAtualizacao
+
 <PageTitle>VaultFace — Painel</PageTitle>
 
 <div class="page">
@@ -29,7 +31,6 @@
         </button>
     </header>
 
-    @* ── CONTEÚDO ── *@
     <main class="center">
         <div class="card-stack">
 
@@ -46,33 +47,98 @@
             </div>
 
             @* ── COFRE ── *@
-            <div class="panel safe-panel @(cofreAberto ? "safe-panel--open" : "")">
-                <div class="safe-icon-wrap">
-                    @if (cofreAberto)
-                    {
-                        <svg class="safe-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                            <path d="M7 11V7a5 5 0 0 1 9.9-1" />
-                        </svg>
-                    }
-                    else
-                    {
-                        <svg class="safe-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                        </svg>
-                    }
+            <div class="panel safe-panel @SafePanelClass()">
+
+                @* Roda do cofre *@
+                <div class="vault-door @VaultDoorClass()">
+
+                    @* Anel exterior com marcações *@
+                    <div class="vault-ring vault-ring--outer">
+                        @for (int i = 0; i < 12; i++)
+                        {
+                            <div class="ring-tick" style="transform: rotate(@(i * 30)deg) translateY(-50px)"></div>
+                        }
+                    </div>
+
+                    @* Anel intermédio *@
+                    <div class="vault-ring vault-ring--mid"></div>
+
+                    @* Corpo central do cofre *@
+                    <div class="vault-center">
+                        @* Parafusos decorativos nos cantos *@
+                        <div class="bolt bolt--tl"></div>
+                        <div class="bolt bolt--tr"></div>
+                        <div class="bolt bolt--bl"></div>
+                        <div class="bolt bolt--br"></div>
+
+                        @* Símbolo central — muda consoante estado *@
+                        <div class="vault-symbol">
+                            @if (estadoCofre == EstadoCofre.Aberto)
+                            {
+                                @* Cadeado aberto *@
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" width="36" height="36">
+                                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                                    <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+                                </svg>
+                            }
+                            else if (estadoCofre == EstadoCofre.Fechado)
+                            {
+                                @* Cadeado fechado *@
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" width="36" height="36">
+                                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                                </svg>
+                            }
+                            else
+                            {
+                                @* Spinner durante animação *@
+                                <div class="vault-spinner"></div>
+                            }
+                        </div>
+                    </div>
+
+                    @* Pega da porta *@
+                    <div class="vault-handle @VaultHandleClass()">
+                        <div class="handle-bar handle-bar--h"></div>
+                        <div class="handle-bar handle-bar--v"></div>
+                    </div>
                 </div>
 
+                @* Texto de estado *@
                 <div class="safe-info">
                     <p class="safe-label">Estado do Cofre</p>
-                    <p class="safe-status @(cofreAberto ? "status-open" : "status-closed")">
-                        @(cofreAberto ? "Desbloqueado" : "Bloqueado")
-                    </p>
+                    <p class="safe-status @SafeStatusClass()">@TextoEstado()</p>
                 </div>
 
-                <button class="btn-safe @(cofreAberto ? "btn-safe--lock" : "btn-safe--unlock")" @onclick="OnClickCofre">
-                    @if (cofreAberto)
+                @* Mensagem de erro de hardware *@
+                @if (!string.IsNullOrEmpty(erroHardware))
+                {
+                    <div class="hw-error">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                            <circle cx="12" cy="12" r="10" />
+                            <line x1="12" y1="8" x2="12" y2="12" />
+                            <line x1="12" y1="16" x2="12.01" y2="16" />
+                        </svg>
+                        <span>@erroHardware</span>
+                        <button @onclick="() => erroHardware = null">×</button>
+                    </div>
+                }
+
+                @* Botão principal *@
+                <button class="btn-safe @BtnSafeClass()"
+                        @onclick="OnClickCofre"
+                        disabled="@EmTransicao()">
+                    @if (estadoCofre == EstadoCofre.AAbrir)
+                    {
+                        <div class="btn-spinner"></div>
+                        <span>A abrir...</span>
+                    }
+                    else if (estadoCofre == EstadoCofre.AFechar)
+                    {
+                        <div class="btn-spinner"></div>
+                        <span>A fechar...</span>
+                    }
+                    else if (estadoCofre == EstadoCofre.Aberto)
                     {
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
                             <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
@@ -91,7 +157,7 @@
                 </button>
             </div>
 
-            @* ── ADMIN (condicional) ── *@
+            @* ── ADMIN ── *@
             @if (Estado.EhAdmin)
             {
                 <button class="panel admin-panel" @onclick="IrParaAdmin">
@@ -117,7 +183,16 @@
 </div>
 
 @code {
-    private bool cofreAberto = false;
+    //ENUM DE ESTADOS
+    private enum EstadoCofre { Fechado, AAbrir, Aberto, AFechar }
+
+    private EstadoCofre estadoCofre = EstadoCofre.Fechado;
+    private string? erroHardware = null;
+
+    // Porta COM do Arduino
+    private const string PORTA_COM = "COM4";
+    // Duração da animação em ms
+    private const int DURACAO_MOTOR_MS = 2500;
 
     protected override void OnInitialized()
     {
@@ -125,15 +200,115 @@
             Navigation.NavigateTo("/", replace: true);
     }
 
-    private void OnClickCofre()
+    private async Task OnClickCofre()
     {
-        cofreAberto = !cofreAberto;
-        if (cofreAberto) AbrirCofre();
-        else FecharCofre();
+        // Bloqueia durante transição
+        if (EmTransicao()) return;
+
+        if (estadoCofre == EstadoCofre.Fechado)
+            await Abrir();
+        else if (estadoCofre == EstadoCofre.Aberto)
+            await Fechar();
     }
 
-    private void AbrirCofre() => Console.WriteLine("Comando enviado: ABRIR");
-    private void FecharCofre() => Console.WriteLine("Comando enviado: FECHAR");
+    private async Task Abrir()
+    {
+        estadoCofre = EstadoCofre.AAbrir;
+        erroHardware = null;
+        await InvokeAsync(StateHasChanged);
+
+        await Task.Run(() =>
+        {
+            try
+            {
+                var hw = new ControladorHardware(PORTA_COM);
+                hw.Abrir();
+                hw.Desconectar();
+            }
+            catch (Exception ex)
+            {
+                erroHardware = $"Hardware: {ex.Message}";
+            }
+        });
+
+        await Task.Delay(DURACAO_MOTOR_MS);
+
+        estadoCofre = EstadoCofre.Aberto;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task Fechar()
+    {
+        estadoCofre = EstadoCofre.AFechar;
+        erroHardware = null;
+        await InvokeAsync(StateHasChanged);
+
+        await Task.Run(() =>
+        {
+            try
+            {
+                var hw = new ControladorHardware(PORTA_COM);
+                hw.Fechar();
+                hw.Desconectar();
+            }
+            catch (Exception ex)
+            {
+                erroHardware = $"Hardware: {ex.Message}";
+            }
+        });
+
+        await Task.Delay(DURACAO_MOTOR_MS);
+
+        estadoCofre = EstadoCofre.Fechado;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    //HELPERS DE CSS
+    private string SafePanelClass() => estadoCofre switch
+    {
+        EstadoCofre.Aberto => "safe-panel--open",
+        EstadoCofre.AAbrir => "safe-panel--opening",
+        EstadoCofre.AFechar => "safe-panel--closing",
+        _ => ""
+    };
+
+    private string VaultDoorClass() => estadoCofre switch
+    {
+        EstadoCofre.AAbrir => "vault-door--spinning-open",
+        EstadoCofre.AFechar => "vault-door--spinning-close",
+        EstadoCofre.Aberto => "vault-door--open",
+        _ => ""
+    };
+
+    private string VaultHandleClass() => estadoCofre switch
+    {
+        EstadoCofre.Aberto => "vault-handle--open",
+        EstadoCofre.AAbrir => "vault-handle--turning",
+        _ => ""
+    };
+
+    private string SafeStatusClass() => estadoCofre switch
+    {
+        EstadoCofre.Aberto => "status-open",
+        EstadoCofre.AAbrir or EstadoCofre.AFechar => "status-transitioning",
+        _ => "status-closed"
+    };
+
+    private string BtnSafeClass() => estadoCofre switch
+    {
+        EstadoCofre.Aberto => "btn-safe--lock",
+        EstadoCofre.AAbrir or EstadoCofre.AFechar => "btn-safe--busy",
+        _ => "btn-safe--unlock"
+    };
+
+    private string TextoEstado() => estadoCofre switch
+    {
+        EstadoCofre.AAbrir => "A abrir...",
+        EstadoCofre.AFechar => "A fechar...",
+        EstadoCofre.Aberto => "Desbloqueado",
+        _ => "Bloqueado"
+    };
+
     private void IrParaAdmin() => Navigation.NavigateTo("/admin");
 
     private void Logout()
@@ -141,6 +316,9 @@
         Estado.Logout();
         Navigation.NavigateTo("/", replace: true);
     }
+
+    private bool EmTransicao() =>
+        estadoCofre == EstadoCofre.AAbrir || estadoCofre == EstadoCofre.AFechar;
 
     private string ObterIniciais(string? nome)
     {
@@ -151,6 +329,8 @@
             : (p[0][0].ToString() + p[^1][0].ToString()).ToUpper();
     }
 }
+
+
 
 <style>
     @@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap');
@@ -175,8 +355,12 @@
         --red: #dc2626;
         --red-bg: #fef2f2;
         --red-br: #fecaca;
+        --amber: #d97706;
+        --amber-bg: #fffbeb;
+        --amber-br: #fde68a;
         --radius: 14px;
         --shadow: 0 4px 24px rgba(0,0,0,0.07);
+        --vault-size: 160px;
     }
 
     body {
@@ -337,49 +521,285 @@
         border: 1px solid #e2e8f0;
     }
 
-    /* ── SAFE PANEL ── */
+    /* ──────────────────────────────
+           ── COFRE ──
+        ────────────────────────────── */
     .safe-panel {
-        padding: 28px 24px;
+        padding: 32px 24px 24px;
         display: flex;
         flex-direction: column;
         align-items: center;
         gap: 20px;
         text-align: center;
-        transition: box-shadow 0.3s;
+        transition: box-shadow 0.4s, border-color 0.4s;
     }
 
     .safe-panel--open {
-        box-shadow: 0 0 0 2px rgba(22,163,74,0.2), var(--shadow);
+        box-shadow: 0 0 0 2px rgba(22,163,74,0.25), var(--shadow);
+        border-color: var(--green-br) !important;
     }
 
-    .safe-icon-wrap {
-        width: 88px;
-        height: 88px;
-        border-radius: 24px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: all 0.3s ease;
+    .safe-panel--opening {
+        box-shadow: 0 0 0 2px rgba(217,119,6,0.25), var(--shadow);
+        border-color: var(--amber-br) !important;
+    }
+
+    .safe-panel--closing {
+        box-shadow: 0 0 0 2px rgba(217,119,6,0.2), var(--shadow);
+        border-color: var(--amber-br) !important;
+    }
+
+    /* ── VAULT DOOR ── */
+    .vault-door {
+        position: relative;
+        width: var(--vault-size);
+        height: var(--vault-size);
+        transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* Spinning animations */
+    .vault-door--spinning-open {
+        animation: vaultSpinOpen 2.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    }
+
+    .vault-door--spinning-close {
+        animation: vaultSpinClose 2.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    }
+
+    .vault-door--open {
+        transform: rotate(90deg);
+    }
+
+    @@keyframes vaultSpinOpen {
+        0% {
+            transform: rotate(0deg);
+        }
+
+        20% {
+            transform: rotate(-15deg);
+        }
+
+        100% {
+            transform: rotate(90deg);
+        }
+    }
+
+    @@keyframes vaultSpinClose {
+        0% {
+            transform: rotate(90deg);
+        }
+
+        20% {
+            transform: rotate(105deg);
+        }
+
+        100% {
+            transform: rotate(0deg);
+        }
+    }
+
+    /* ── ANÉIS EXTERIORES ── */
+    .vault-ring {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        border-radius: 50%;
+        transform: translate(-50%, -50%);
+        transition: border-color 0.4s, background 0.4s;
+    }
+
+    .vault-ring--outer {
+        width: 100%;
+        height: 100%;
         background: var(--bg);
-        border: 1px solid var(--border);
+        border: 2px solid var(--border);
     }
 
-    .safe-panel--open .safe-icon-wrap {
+    .safe-panel--open .vault-ring--outer {
+        border-color: var(--green-br);
         background: var(--green-bg);
+    }
+
+    .safe-panel--opening .vault-ring--outer,
+    .safe-panel--closing .vault-ring--outer {
+        border-color: var(--amber-br);
+        background: var(--amber-bg);
+    }
+
+    .vault-ring--mid {
+        width: 76%;
+        height: 76%;
+        background: transparent;
+        border: 2px dashed var(--border);
+        opacity: 0.6;
+    }
+
+    .safe-panel--open .vault-ring--mid {
         border-color: var(--green-br);
     }
 
-    .safe-icon {
-        width: 44px;
-        height: 44px;
+    .safe-panel--opening .vault-ring--mid,
+    .safe-panel--closing .vault-ring--mid {
+        border-color: var(--amber-br);
+    }
+
+    /* Marcações no anel exterior */
+    .ring-tick {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 3px;
+        height: 10px;
+        background: var(--border);
+        border-radius: 2px;
+        transform-origin: center 50px;
+        margin-left: -1.5px;
+        margin-top: -5px;
+        transition: background 0.4s;
+    }
+
+    .safe-panel--open .ring-tick {
+        background: var(--green-br);
+    }
+
+    .safe-panel--opening .ring-tick,
+    .safe-panel--closing .ring-tick {
+        background: var(--amber-br);
+    }
+
+    /* ── CORPO CENTRAL ── */
+    .vault-center {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 54%;
+        height: 54%;
+        background: var(--surface);
+        border: 2px solid var(--border);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: border-color 0.4s, box-shadow 0.4s;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    }
+
+    .safe-panel--open .vault-center {
+        border-color: var(--green);
+        box-shadow: 0 0 0 3px rgba(22,163,74,0.15), 0 2px 12px rgba(0,0,0,0.08);
+    }
+
+    .safe-panel--opening .vault-center,
+    .safe-panel--closing .vault-center {
+        border-color: var(--amber);
+        box-shadow: 0 0 0 3px rgba(217,119,6,0.15), 0 2px 12px rgba(0,0,0,0.08);
+    }
+
+    .vault-symbol {
         color: var(--muted);
         transition: color 0.3s;
     }
 
-    .safe-panel--open .safe-icon {
+    .safe-panel--open .vault-symbol {
         color: var(--green);
     }
 
+    .safe-panel--opening .vault-symbol,
+    .safe-panel--closing .vault-symbol {
+        color: var(--amber);
+    }
+
+    /* Parafusos decorativos */
+    .bolt {
+        position: absolute;
+        width: 8px;
+        height: 8px;
+        background: var(--border);
+        border-radius: 50%;
+        transition: background 0.4s;
+    }
+
+    .bolt--tl {
+        top: 8px;
+        left: 8px;
+    }
+
+    .bolt--tr {
+        top: 8px;
+        right: 8px;
+    }
+
+    .bolt--bl {
+        bottom: 8px;
+        left: 8px;
+    }
+
+    .bolt--br {
+        bottom: 8px;
+        right: 8px;
+    }
+
+    .safe-panel--open .bolt {
+        background: var(--green-br);
+    }
+
+    .safe-panel--opening .bolt, .safe-panel--closing .bolt {
+        background: var(--amber-br);
+    }
+
+    /* ── PEGA DA PORTA ── */
+    .vault-handle {
+        position: absolute;
+        top: 50%;
+        right: 8px;
+        transform: translateY(-50%);
+        width: 12px;
+        height: 28px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0;
+        transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .handle-bar {
+        background: var(--dim);
+        border-radius: 2px;
+        position: absolute;
+        transition: background 0.4s, transform 0.4s;
+    }
+
+    .handle-bar--h {
+        width: 12px;
+        height: 3px;
+    }
+
+    .handle-bar--v {
+        width: 3px;
+        height: 12px;
+    }
+
+    .vault-handle--open .handle-bar {
+        background: var(--green);
+    }
+
+    .vault-handle--turning .handle-bar {
+        background: var(--amber);
+    }
+
+    /* Spinner dentro do cofre durante transição */
+    .vault-spinner {
+        width: 24px;
+        height: 24px;
+        border: 2px solid var(--amber-br);
+        border-top-color: var(--amber);
+        border-radius: 50%;
+        animation: spin 0.7s linear infinite;
+    }
+
+    /* ── INFO ── */
     .safe-info {
         display: flex;
         flex-direction: column;
@@ -387,10 +807,10 @@
     }
 
     .safe-label {
-        font-size: 12px;
+        font-size: 11px;
         color: var(--muted);
         text-transform: uppercase;
-        letter-spacing: 0.06em;
+        letter-spacing: 0.08em;
         font-weight: 600;
     }
 
@@ -398,6 +818,7 @@
         font-size: 22px;
         font-weight: 600;
         letter-spacing: -0.5px;
+        transition: color 0.3s;
     }
 
     .status-open {
@@ -408,7 +829,43 @@
         color: var(--text);
     }
 
-    /* ── SAFE BUTTON ── */
+    .status-transitioning {
+        color: var(--amber);
+    }
+
+    /* ── ERRO HARDWARE ── */
+    .hw-error {
+        width: 100%;
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        padding: 10px 12px;
+        background: var(--red-bg);
+        border: 1px solid var(--red-br);
+        border-radius: 8px;
+        font-size: 12px;
+        color: var(--red);
+    }
+
+        .hw-error span {
+            flex: 1;
+        }
+
+        .hw-error button {
+            background: none;
+            border: none;
+            color: var(--red);
+            cursor: pointer;
+            font-size: 15px;
+            opacity: 0.6;
+            padding: 0;
+        }
+
+            .hw-error button:hover {
+                opacity: 1;
+            }
+
+    /* ── BOTÃO PRINCIPAL ── */
     .btn-safe {
         width: 100%;
         display: flex;
@@ -425,13 +882,18 @@
         transition: all 0.2s;
     }
 
+        .btn-safe:disabled {
+            cursor: not-allowed;
+            opacity: 0.85;
+        }
+
     .btn-safe--unlock {
         background: var(--green);
         color: white;
         box-shadow: 0 2px 12px rgba(22,163,74,0.25);
     }
 
-        .btn-safe--unlock:hover {
+        .btn-safe--unlock:hover:not(:disabled) {
             background: #15803d;
             transform: translateY(-1px);
             box-shadow: 0 4px 18px rgba(22,163,74,0.35);
@@ -443,11 +905,35 @@
         border: 1px solid var(--border);
     }
 
-        .btn-safe--lock:hover {
+        .btn-safe--lock:hover:not(:disabled) {
             background: var(--red-bg);
             border-color: var(--red-br);
             color: var(--red);
         }
+
+    .btn-safe--busy {
+        background: var(--amber-bg);
+        color: var(--amber);
+        border: 1px solid var(--amber-br);
+    }
+
+    /* Spinner no botão */
+    .btn-spinner {
+        width: 16px;
+        height: 16px;
+        border: 2px solid var(--amber-br);
+        border-top-color: var(--amber);
+        border-radius: 50%;
+        animation: spin 0.7s linear infinite;
+        flex-shrink: 0;
+    }
+
+    /* Spinner geral */
+    @@keyframes spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
 
     /* ── ADMIN PANEL ── */
     .admin-panel {
@@ -516,7 +1002,6 @@
         color: var(--accent);
     }
 
-    /* ── RESPONSIVE ── */
     @@media (max-width: 600px) {
         .topbar {
             padding: 14px 20px;
