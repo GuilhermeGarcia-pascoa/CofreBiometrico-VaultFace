@@ -8,307 +8,810 @@
 @inject EstadoApp Estado
 @inject BaseSql BancoService
 
-<PageTitle>Painel Administrativo</PageTitle>
+<PageTitle>VaultFace — Admin</PageTitle>
 
-<div class="admin-layout">
-    @* --- SIDEBAR --- *@
-    <aside class="sidebar">
-        <div class="sidebar-header">
-            <div class="brand-logo">Admin<span class="brand-dot">.</span></div>
-            <p class="brand-subtitle">Centro de Controle</p>
+<div class="page">
+
+    @* ══════════════════════════════════════════
+       TOPBAR
+    ══════════════════════════════════════════ *@
+    <header class="topbar">
+
+        <div class="brand">
+            <div class="brand-lock">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </svg>
+            </div>
+            VaultFace
         </div>
 
-        <nav class="nav-menu">
-            <div class="nav-label">Geral</div>
-            <button class="nav-link @(abaAtiva == "usuarios" ? "active" : "")" @onclick="@(() => MudarAba("usuarios"))">
-                <span class="icon">👥</span> Utilizadores
-            </button>
-            <button class="nav-link @(abaAtiva == "logs" ? "active" : "")" @onclick="@(() => MudarAba("logs"))">
-                <span class="icon">🛡️</span> Auditoria & Logs
-            </button>
-        </nav>
-
-        <div class="sidebar-footer">
-            <div class="user-card">
-                <div class="avatar">@Estado.UsuarioAtual?.Nome?[0]</div>
-                <div class="user-info">
-                    <span class="u-name">@Estado.UsuarioAtual?.Nome</span>
-                    <span class="u-role">@Estado.UsuarioAtual?.Permissao</span>
+        <div class="topbar-right">
+            <div class="admin-info">
+                <div class="admin-avatar">@Estado.UsuarioAtual?.Nome?[0]</div>
+                <div class="admin-meta">
+                    <span class="admin-name">@Estado.UsuarioAtual?.Nome</span>
+                    <span class="admin-role">@Estado.UsuarioAtual?.Permissao</span>
                 </div>
             </div>
-            <button class="logout-link" @onclick="VoltarParaUserLogado">Sair do sistema</button>
+            <button class="btn-logout" @onclick="VoltarParaUserLogado">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                    <polyline points="16 17 21 12 16 7" />
+                    <line x1="21" y1="12" x2="9" y2="12" />
+                </svg>
+                Sair
+            </button>
         </div>
-    </aside>
 
-    @* --- CONTEÚDO PRINCIPAL --- *@
-    <main class="main-content">
+    </header>
 
-        <header class="top-header">
-            <div class="header-titles">
-                <h1>@(abaAtiva == "usuarios" ? "Gestão de Utilizadores" : "Registro de Atividades")</h1>
-                <p>Visualize e gerencie as informações do sistema.</p>
+    @* ══════════════════════════════════════════
+       NAVEGAÇÃO LATERAL FLUTUANTE
+    ══════════════════════════════════════════ *@
+    <nav class="side-nav">
+
+        <button class="nav-item @(abaAtiva == "usuarios" ? "nav-item--active" : "")"
+                @onclick="@(() => MudarAba("usuarios"))">
+            <div class="nav-icon-wrap">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="18" height="18">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                    <circle cx="9" cy="7" r="4" />
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                </svg>
             </div>
-
-            @if (abaAtiva == "usuarios")
+            <span class="nav-label">Utilizadores</span>
+            @if (listaUsuarios != null)
             {
-                <button class="btn-action" @onclick="IrParaCadastro">
-                    + Novo Operador
-                </button>
+                <span class="nav-badge">@listaUsuarios.Count</span>
             }
-        </header>
+        </button>
 
-        @* Feedback Toast *@
+        <div class="nav-divider"></div>
+
+        <button class="nav-item @(abaAtiva == "logs" ? "nav-item--active" : "")"
+                @onclick="@(() => MudarAba("logs"))">
+            <div class="nav-icon-wrap">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="18" height="18">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                </svg>
+            </div>
+            <span class="nav-label">Auditoria</span>
+            @if (tabelaLogs != null && tabelaLogs.Rows.Count > 0)
+            {
+                <span class="nav-badge nav-badge--alert">@tabelaLogs.Rows.Count</span>
+            }
+        </button>
+
+    </nav>
+
+    @* ══════════════════════════════════════════
+       CONTEÚDO PRINCIPAL
+    ══════════════════════════════════════════ *@
+    <main class="main">
+
+        @* ── Toast de Feedback ── *@
         @if (!string.IsNullOrEmpty(mensagemFeedback))
         {
-            <div class="feedback-toast">
-                <span class="check-icon">✓</span> @mensagemFeedback
-                <button class="close-btn" @onclick="() => mensagemFeedback = null">×</button>
+            <div class="toast">
+                <div class="toast-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="12" height="12">
+                        <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                </div>
+                <span>@mensagemFeedback</span>
+                <button class="toast-close" @onclick="() => mensagemFeedback = null">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="12" height="12">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                </button>
             </div>
         }
 
-        <div class="panel-card">
-            @* --- BARRA DE FERRAMENTAS --- *@
-            <div class="toolbar">
-                <div class="search-box">
-                    <span class="search-icon">🔍</span>
-                    <input type="text"
-                           placeholder="Buscar..."
-                           @bind="termoPesquisa"
-                           @bind:event="oninput" />
-                </div>
+        @* ══════════════════════════════════════════
+           VIEW — UTILIZADORES
+        ══════════════════════════════════════════ *@
+        <div class="view @(abaAtiva == "usuarios" ? "view--visible" : "view--hidden")">
 
-                @if (abaAtiva == "logs")
-                {
-                    <div class="filters-row">
-                        <div class="date-picker-group">
-                            <input type="date" @bind="filtroDataInicio" />
-                            <span>até</span>
-                            <input type="date" @bind="filtroDataFim" />
-                        </div>
-                        <select class="filter-select" @bind="filtroTipoAcao">
-                            <option value="">Todas as Ações</option>
-                            <option value="Acesso">Acessos</option>
-                            <option value="Alteração">Alterações</option>
-                            <option value="Erro">Erros</option>
-                        </select>
-                    </div>
-                }
+            <div class="section-header">
+                <div>
+                    <h1 class="section-title">Utilizadores</h1>
+                    <p class="section-sub">Gerencie os operadores do sistema.</p>
+                </div>
+                <button class="btn-primary" @onclick="IrParaCadastro">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14">
+                        <line x1="12" y1="5" x2="12" y2="19" />
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                    Novo Operador
+                </button>
             </div>
 
-            @* --- TABELA USUÁRIOS --- *@
-            @if (abaAtiva == "usuarios")
-            {
-                <div class="table-wrapper">
-                    <table class="pro-table">
+            <div class="card">
+
+                <div class="toolbar">
+                    <div class="search-box">
+                        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8" />
+                            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                        </svg>
+                        <input type="text"
+                               placeholder="Pesquisar utilizador..."
+                               @bind="termoPesquisa"
+                               @bind:event="oninput" />
+                        @if (!string.IsNullOrEmpty(termoPesquisa))
+                        {
+                            <button class="search-clear"
+                                    @onclick='() => { termoPesquisa = ""; paginaUsuarios = 1; }'>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="12" height="12">
+                                    <line x1="18" y1="6" x2="6" y2="18" />
+                                    <line x1="6" y1="6" x2="18" y2="18" />
+                                </svg>
+                            </button>
+                        }
+                    </div>
+                    <span class="result-count">
+                        @UtilizadoresFiltrados().Count resultado@(UtilizadoresFiltrados().Count != 1 ? "s" : "")
+                    </span>
+                </div>
+
+                <div class="table-wrap">
+                    <table class="data-table">
                         <thead>
                             <tr>
-                                <th width="35%">Operador</th>
-                                <th width="25%">Nível de Acesso</th>
-                                <th width="20%">Identificador</th>
-                                <th width="20%" class="text-right">Ações</th>
+                                <th>Operador</th>
+                                <th>Nível de Acesso</th>
+                                <th>Identificador</th>
+                                <th class="th-right">Ações</th>
                             </tr>
                         </thead>
                         <tbody>
                             @if (listaUsuarios == null)
                             {
                                 <tr>
-                                    <td colspan="4" class="loading-cell" style="text-align:center; padding: 40px;">
-                                        <div class="spinner"></div> Carregando dados...
+                                    <td colspan="4" class="cell-loading">
+                                        <div class="spinner"></div>
+                                        <span>A carregar dados...</span>
                                     </td>
                                 </tr>
                             }
-                            else if (listaUsuarios.Count == 0)
+                            else
                             {
-                                <tr><td colspan="4" class="text-center">Nenhum usuário encontrado.</td></tr>
+                                var paginados = UtilizadoresFiltrados()
+                                .Skip((paginaUsuarios - 1) * ITENS_POR_PAGINA)
+                                .Take(ITENS_POR_PAGINA)
+                                .ToList();
+
+                                if (!paginados.Any())
+                                {
+                                    <tr>
+                                        <td colspan="4" class="cell-empty">Nenhum utilizador encontrado.</td>
+                                    </tr>
+                                }
+                                else
+                                {
+                                    @foreach (var user in paginados)
+                                    {
+                                        bool isSuperAdmin = IsUserSuperAdmin(user);
+                                        bool isMe = user.Id == Estado.UsuarioAtual?.Id;
+
+                                        <tr>
+                                            <td>
+                                                <div class="user-cell">
+                                                    <div class="u-avatar @(isSuperAdmin ? "u-avatar--gold" : "")">
+                                                        @user.Nome[0].ToString().ToUpper()
+                                                    </div>
+                                                    <div>
+                                                        <span class="u-name">@user.Nome</span>
+                                                        @if (isSuperAdmin)
+                                                        {
+                                                            <span class="badge-master">MASTER</span>
+                                                        }
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <span class="perm-badge @ObterClassePermissao(user.Permissao)">
+                                                    @user.Permissao
+                                                </span>
+                                            </td>
+                                            <td class="td-mono">ID #@user.Id.ToString("D4")</td>
+                                            <td class="th-right">
+                                                <div class="action-group">
+                                                    @if (!isMe && !isSuperAdmin)
+                                                    {
+                                                        <button class="btn-icon"
+                                                                @onclick="() => AbrirModalEdicao(user)"
+                                                                title="Gerir permissões">
+                                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                                                <circle cx="12" cy="12" r="3" />
+                                                                <path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14" />
+                                                            </svg>
+                                                        </button>
+                                                        <button class="btn-icon btn-icon--danger"
+                                                                @onclick="() => SolicitarExclusao(user)"
+                                                                title="Excluir">
+                                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                                                <polyline points="3 6 5 6 21 6" />
+                                                                <path d="M19 6l-1 14H6L5 6" />
+                                                                <path d="M9 6V4h6v2" />
+                                                            </svg>
+                                                        </button>
+                                                    }
+                                                    else if (isMe)
+                                                    {
+                                                        <span class="td-label">Você</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="td-label">Protegido</span>
+                                                    }
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                @{
+                    int totalU = (int)Math.Ceiling((double)UtilizadoresFiltrados().Count / ITENS_POR_PAGINA);
+                }
+                @if (totalU > 1)
+                {
+                    <div class="pagination">
+                        <button class="page-btn"
+                                disabled="@(paginaUsuarios == 1)"
+                                @onclick="() => paginaUsuarios--">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14">
+                                <polyline points="15 18 9 12 15 6" />
+                            </svg>
+                        </button>
+
+                        @for (int i = 1; i <= totalU; i++)
+                        {
+                            int pg = i;
+                            <button class="page-btn @(paginaUsuarios == pg ? "page-btn--active" : "")"
+                                    @onclick="() => paginaUsuarios = pg">
+                                @pg
+                            </button>
+                        }
+
+                        <button class="page-btn"
+                                disabled="@(paginaUsuarios == totalU)"
+                                @onclick="() => paginaUsuarios++">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14">
+                                <polyline points="9 18 15 12 9 6" />
+                            </svg>
+                        </button>
+
+                        <span class="page-info">Página @paginaUsuarios de @totalU</span>
+                    </div>
+                }
+
+            </div>
+        </div>
+
+        @* ══════════════════════════════════════════
+           VIEW — LOGS / AUDITORIA
+        ══════════════════════════════════════════ *@
+        <div class="view @(abaAtiva == "logs" ? "view--visible" : "view--hidden")">
+            @{
+                var todosLogs = LogsFiltrados().ToList();
+                int totalL = (int)Math.Ceiling((double)todosLogs.Count / ITENS_POR_PAGINA);
+            }
+
+            @* ── Stat Cards ── *@
+            <div class="stats-row">
+
+                <button class="stat-card @(filtroTipoAcao == "" ? "stat-card--active" : "")"
+                        @onclick='() => { filtroTipoAcao = ""; paginaLogs = 1; }'>
+                    <span class="stat-icon stat-icon--all">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                            <polyline points="14 2 14 8 20 8" />
+                        </svg>
+                    </span>
+                    <div class="stat-body">
+                        <span class="stat-num">@(tabelaLogs?.Rows.Count ?? 0)</span>
+                        <span class="stat-label">Todos</span>
+                    </div>
+                </button>
+
+                <button class="stat-card @(filtroTipoAcao == "Criação" ? "stat-card--active stat-card--green" : "")"
+                        @onclick='() => { filtroTipoAcao = "Criação"; paginaLogs = 1; }'>
+                    <span class="stat-icon stat-icon--green">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16">
+                            <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                            <circle cx="8.5" cy="7" r="4" />
+                            <line x1="20" y1="8" x2="20" y2="14" />
+                            <line x1="23" y1="11" x2="17" y2="11" />
+                        </svg>
+                    </span>
+                    <div class="stat-body">
+                        <span class="stat-num">@ContarTipo("Criação")</span>
+                        <span class="stat-label">Criações</span>
+                    </div>
+                </button>
+
+                <button class="stat-card @(filtroTipoAcao == "Cadastro" ? "stat-card--active stat-card--blue" : "")"
+                        @onclick='() => { filtroTipoAcao = "Cadastro"; paginaLogs = 1; }'>
+                    <span class="stat-icon stat-icon--blue">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                            <circle cx="12" cy="12" r="3" />
+                        </svg>
+                    </span>
+                    <div class="stat-body">
+                        <span class="stat-num">@ContarTipo("Cadastro")</span>
+                        <span class="stat-label">Biometrias</span>
+                    </div>
+                </button>
+
+                <button class="stat-card @(filtroTipoAcao == "Alteração" ? "stat-card--active stat-card--amber" : "")"
+                        @onclick='() => { filtroTipoAcao = "Alteração"; paginaLogs = 1; }'>
+                    <span class="stat-icon stat-icon--amber">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                        </svg>
+                    </span>
+                    <div class="stat-body">
+                        <span class="stat-num">@ContarTipo("Alteração")</span>
+                        <span class="stat-label">Alterações</span>
+                    </div>
+                </button>
+
+                <button class="stat-card @(filtroTipoAcao == "Exclusão" ? "stat-card--active stat-card--red" : "")"
+                        @onclick='() => { filtroTipoAcao = "Exclusão"; paginaLogs = 1; }'>
+                    <span class="stat-icon stat-icon--red">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16">
+                            <polyline points="3 6 5 6 21 6" />
+                            <path d="M19 6l-1 14H6L5 6" />
+                            <path d="M9 6V4h6v2" />
+                        </svg>
+                    </span>
+                    <div class="stat-body">
+                        <span class="stat-num">@ContarTipo("Exclusão")</span>
+                        <span class="stat-label">Exclusões</span>
+                    </div>
+                </button>
+
+            </div>
+
+            <div class="section-header">
+                <div>
+                    <h1 class="section-title">
+                        @if (!string.IsNullOrEmpty(filtroTipoAcao))
+                        {
+                            <span class="filter-chip">@filtroTipoAcao</span>
+                        }
+                        else
+                        {
+                            <text>Auditoria & Logs</text>
+                        }
+                    </h1>
+                    <p class="section-sub">
+                        @todosLogs.Count registo@(todosLogs.Count != 1 ? "s" : "")
+                        encontrado@(todosLogs.Count != 1 ? "s" : "")
+                    </p>
+                </div>
+                @if (!string.IsNullOrEmpty(filtroTipoAcao) ||
+                                !string.IsNullOrEmpty(termoPesquisa) ||
+                                filtroDataInicio.HasValue ||
+                                filtroDataFim.HasValue)
+                {
+                    <button class="btn-clear" @onclick="LimparFiltros">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                            <line x1="18" y1="6" x2="6" y2="18" />
+                            <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                        Limpar filtros
+                    </button>
+                }
+            </div>
+
+            <div class="card">
+
+                <div class="toolbar toolbar--logs">
+                    <div class="search-box">
+                        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8" />
+                            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                        </svg>
+                        <input type="text"
+                               placeholder="Pesquisar utilizador ou detalhe..."
+                               @bind="termoPesquisa"
+                               @bind:event="oninput" />
+                        @if (!string.IsNullOrEmpty(termoPesquisa))
+                        {
+                            <button class="search-clear"
+                                    @onclick='() => { termoPesquisa = ""; paginaLogs = 1; }'>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="12" height="12">
+                                    <line x1="18" y1="6" x2="6" y2="18" />
+                                    <line x1="6" y1="6" x2="18" y2="18" />
+                                </svg>
+                            </button>
+                        }
+                    </div>
+                    <div class="date-group">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="13" height="13" class="date-icon">
+                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                            <line x1="16" y1="2" x2="16" y2="6" />
+                            <line x1="8" y1="2" x2="8" y2="6" />
+                            <line x1="3" y1="10" x2="21" y2="10" />
+                        </svg>
+                        <input type="date" @bind="filtroDataInicio" />
+                        <span class="date-sep">→</span>
+                        <input type="date" @bind="filtroDataFim" />
+                    </div>
+                </div>
+
+                <div class="table-wrap">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th style="width:110px">Horário</th>
+                                <th style="width:150px">Utilizador</th>
+                                <th style="width:150px">Tipo</th>
+                                <th>Ocorrência</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @{
+                                var logsPaginados = todosLogs
+                                .Skip((paginaLogs - 1) * ITENS_POR_PAGINA)
+                                .Take(ITENS_POR_PAGINA)
+                                .ToList();
+                            }
+                            @if (!logsPaginados.Any())
+                            {
+                                <tr>
+                                    <td colspan="4" class="cell-empty">Nenhum registo encontrado.</td>
+                                </tr>
                             }
                             else
                             {
-                                var filtrados = listaUsuarios.Where(u => string.IsNullOrEmpty(termoPesquisa) || u.Nome.Contains(termoPesquisa, StringComparison.OrdinalIgnoreCase)).ToList();
-                                @foreach (var user in filtrados)
+                                @foreach (DataRow row in logsPaginados)
                                 {
-                                    bool isSuperAdmin = IsUserSuperAdmin(user);
-                                    bool isMe = user.Id == Estado.UsuarioAtual?.Id;
+                                    string tipo = row["Acao"].ToString() ?? "";
 
-                                    <tr class="@(isSuperAdmin ? "row-master" : "")">
+                                    <tr class="@ObterClasseLinha(tipo)">
+                                        <td class="td-mono">
+                                            @Convert.ToDateTime(row["DataHora"]).ToString("dd/MM HH:mm")
+                                        </td>
                                         <td>
-                                            <div class="user-cell">
-                                                <div class="table-avatar @(isSuperAdmin ? "gold" : "")">
-                                                    @user.Nome[0].ToString().ToUpper()
+                                            <div class="log-user-cell">
+                                                <div class="log-dot @(row["Usuario"].ToString() == "Sistema" ? "dot-system" : "dot-user")">
                                                 </div>
-                                                <div class="name-col">
-                                                    <span class="fw-bold">@user.Nome</span>
-                                                    @if (isSuperAdmin)
-                                                    {
-                                                        <small class="badge-gold">MASTER</small>
-                                                    }
-                                                </div>
+                                                <span class="u-name">@row["Usuario"]</span>
                                             </div>
                                         </td>
                                         <td>
-                                            <span class="perm-badge @ObterClassePermissao(user.Permissao)">
-                                                @user.Permissao
-                                            </span>
+                                            <span class="type-badge @ObterClasseBadgeLog(tipo)">@tipo</span>
                                         </td>
-                                        <td class="mono-font text-muted">ID: #@user.Id.ToString("D4")</td>
-                                        <td class="text-right">
-                                            <div class="action-buttons">
-                                                @if (!isMe && !isSuperAdmin)
-                                                {
-                                                    <button class="btn-icon edit" @onclick="() => AbrirModalEdicao(user)" title="Gerenciar Permissões">
-                                                        ⚙️
-                                                    </button>
-                                                    <button class="btn-icon trash" @onclick="() => SolicitarExclusao(user)" title="Excluir Usuário">
-                                                        🗑️
-                                                    </button>
-                                                }
-                                                else if (isMe)
-                                                {
-                                                    <span class="text-muted text-xs">Você</span>
-                                                }
-                                                else
-                                                {
-                                                    <span class="text-muted text-xs">Protegido</span>
-                                                }
-                                            </div>
-                                        </td>
+                                        <td class="td-detail">@row["Detalhes"]</td>
                                     </tr>
                                 }
                             }
                         </tbody>
                     </table>
                 </div>
-            }
 
-            @* --- TABELA LOGS --- *@
-            @if (abaAtiva == "logs")
-            {
-                <div class="table-wrapper">
-                    <table class="pro-table">
-                        <thead>
-                            <tr>
-                                <th>Horário</th>
-                                <th>Usuário</th>
-                                <th>Tipo</th>
-                                <th>Detalhe da Ocorrência</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (DataRow row in FiltrarLogs())
-                            {
-                                string tipo = row["Acao"].ToString();
-                                string badgeClass = tipo.Contains("Erro") ? "b-red" : (tipo.Contains("Alteração") ? "b-orange" : "b-blue");
-                                <tr>
-                                    <td class="mono-font">
-                                        @Convert.ToDateTime(row["DataHora"]).ToString("dd/MM HH:mm")
-                                    </td>
-                                    <td class="fw-bold">@row["Usuario"]</td>
-                                    <td><span class="status-badge @badgeClass">@tipo</span></td>
-                                    <td class="text-secondary">@row["Detalhes"]</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            }
-        </div>
-    </main>
+                @if (totalL > 1)
+                {
+                    int ini = Math.Max(1, paginaLogs - 2);
+                    int fim = Math.Min(totalL, paginaLogs + 2);
 
-    @* --- MODAL DE EDIÇÃO DE PERMISSÃO --- *@
-    @if (modalVisivel && usuarioEmEdicao != null)
-    {
-        <div class="modal-overlay">
-            <div class="modal-box">
-                <div class="modal-header">
-                    <h3>Gerenciar Acesso</h3>
-                    <button class="close-modal" @onclick="FecharModal">×</button>
-                </div>
-                <div class="modal-body">
-                    <p>Você está alterando as permissões de <strong>@usuarioEmEdicao.Nome</strong>.</p>
-                    <div class="form-group">
-                        <label>Nível de Permissão</label>
-                        <select class="form-select" @bind="novaPermissaoSelecionada">
-                            @foreach (var item in Enum.GetValues(typeof(NivelPermissao)))
-                            {
-                                if (item.ToString() == "AdminSupremo") continue;
-                                <option value="@item">@item</option>
-                            }
-                        </select>
+                    <div class="pagination">
+                        <button class="page-btn"
+                                disabled="@(paginaLogs == 1)"
+                                @onclick="() => paginaLogs--">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14">
+                                <polyline points="15 18 9 12 15 6" />
+                            </svg>
+                        </button>
+
+                        @if (ini > 1)
+                        {
+                            <button class="page-btn" @onclick="() => paginaLogs = 1">1</button>
+                        }
+                        @if (ini > 2)
+                        {
+                            <span class="page-ellipsis">…</span>
+                        }
+
+                        @for (int i = ini; i <= fim; i++)
+                        {
+                            int pg = i;
+                            <button class="page-btn @(paginaLogs == pg ? "page-btn--active" : "")"
+                                    @onclick="() => paginaLogs = pg">
+                                @pg
+                            </button>
+                        }
+
+                        @if (fim < totalL - 1)
+                        {
+                            <span class="page-ellipsis">…</span>
+                        }
+                        @if (fim < totalL)
+                        {
+                            <button class="page-btn" @onclick="() => paginaLogs = totalL">@totalL</button>
+                        }
+
+                        <button class="page-btn"
+                                disabled="@(paginaLogs == totalL)"
+                                @onclick="() => paginaLogs++">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14">
+                                <polyline points="9 18 15 12 9 6" />
+                            </svg>
+                        </button>
+
+                        <span class="page-info">
+                            @((paginaLogs - 1) * ITENS_POR_PAGINA + 1)–@(Math.Min(paginaLogs * ITENS_POR_PAGINA, todosLogs.Count))
+                            de @todosLogs.Count
+                        </span>
                     </div>
-                </div>
-                <div class="modal-footer">
-                    <button class="btn-cancel" @onclick="FecharModal">Cancelar</button>
-                    <button class="btn-confirm" @onclick="SalvarPermissao">Salvar Alterações</button>
-                </div>
-            </div>
-        </div>
-    }
+                }
 
-    @* --- MODAL DE CONFIRMAÇÃO DE EXCLUSÃO (NOVO) --- *@
-    @if (modalExclusaoVisivel && usuarioParaExcluir != null)
-    {
-        <div class="modal-overlay">
-            <div class="modal-box delete-mode">
-                <div class="modal-header">
-                    <h3 class="text-danger">Confirmar Exclusão</h3>
-                    <button class="close-modal" @onclick="FecharModalExclusao">×</button>
-                </div>
-                <div class="modal-body">
-                    <p>Tem certeza que deseja excluir o usuário <strong>@usuarioParaExcluir.Nome</strong>?</p>
-                    <p class="text-sm text-muted">Esta ação não pode ser desfeita e revogará o acesso imediatamente.</p>
-                </div>
-                <div class="modal-footer">
-                    <button class="btn-cancel" @onclick="FecharModalExclusao">Cancelar</button>
-                    <button class="btn-confirm btn-danger" @onclick="ConfirmarExclusaoDefinitiva">Sim, Excluir</button>
-                </div>
             </div>
         </div>
-    }
+
+    </main>
 </div>
 
+@* ══════════════════════════════════════════
+   MODAL — EDIÇÃO DE PERMISSÃO
+══════════════════════════════════════════ *@
+@if (modalVisivel && usuarioEmEdicao != null)
+{
+    <div class="modal-overlay">
+        <div class="modal-box">
+
+            <div class="modal-header">
+                <div class="modal-title-group">
+                    <div class="modal-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="18" height="18">
+                            <circle cx="12" cy="12" r="3" />
+                            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14" />
+                        </svg>
+                    </div>
+                    <div>
+                        <h3>Gerir Acesso</h3>
+                        <p>@usuarioEmEdicao.Nome</p>
+                    </div>
+                </div>
+                <button class="close-btn" @onclick="FecharModal">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                <label class="form-label">Nível de Permissão</label>
+                <select class="form-sel" @bind="novaPermissaoSelecionada">
+                    @foreach (var item in Enum.GetValues(typeof(NivelPermissao)))
+                    {
+                        if (item.ToString() == "AdminSupremo") continue;
+                        <option value="@item">@item</option>
+                    }
+                </select>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn-cancel" @onclick="FecharModal">Cancelar</button>
+                <button class="btn-primary" @onclick="SalvarPermissao">Guardar alterações</button>
+            </div>
+
+        </div>
+    </div>
+}
+
+@* ══════════════════════════════════════════
+   MODAL — CONFIRMAÇÃO DE EXCLUSÃO
+══════════════════════════════════════════ *@
+@if (modalExclusaoVisivel && usuarioParaExcluir != null)
+{
+    <div class="modal-overlay">
+        <div class="modal-box modal-box--danger">
+
+            <div class="modal-header">
+                <div class="modal-title-group">
+                    <div class="modal-icon modal-icon--danger">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="18" height="18">
+                            <polyline points="3 6 5 6 21 6" />
+                            <path d="M19 6l-1 14H6L5 6" />
+                            <path d="M9 6V4h6v2" />
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="danger-title">Confirmar Exclusão</h3>
+                        <p>@usuarioParaExcluir.Nome</p>
+                    </div>
+                </div>
+                <button class="close-btn" @onclick="FecharModalExclusao">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                <div class="warning-box">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" y1="8" x2="12" y2="12" />
+                        <line x1="12" y1="16" x2="12.01" y2="16" />
+                    </svg>
+                    <span>Esta ação é irreversível e revogará o acesso imediatamente.</span>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn-cancel" @onclick="FecharModalExclusao">Cancelar</button>
+                <button class="btn-danger" @onclick="ConfirmarExclusaoDefinitiva">Sim, excluir</button>
+            </div>
+
+        </div>
+    </div>
+}
+
+@* ══════════════════════════════════════════
+   CODE-BEHIND
+══════════════════════════════════════════ *@
 @code {
-    // --- VARIÁVEIS DE ESTADO ---
+
+    // ── Estado da UI ──────────────────────────────────────
     private string abaAtiva = "usuarios";
-    private List<Usuario>? listaUsuarios = null; // Iniciado como null para loading state
-    private DataTable tabelaLogs = new();
     private string termoPesquisa = "";
-    private DateTime? filtroDataInicio;
-    private DateTime? filtroDataFim;
     private string filtroTipoAcao = "";
     private string? mensagemFeedback;
 
-    // --- VARIÁVEIS DO MODAL EDIÇÃO ---
+    private DateTime? filtroDataInicio;
+    private DateTime? filtroDataFim;
+
+    // ── Dados ─────────────────────────────────────────────
+    private List<Usuario>? listaUsuarios = null;
+    private DataTable tabelaLogs = new();
+
+    // ── Modais ────────────────────────────────────────────
     private bool modalVisivel = false;
     private Usuario? usuarioEmEdicao;
     private NivelPermissao novaPermissaoSelecionada;
 
-    // --- VARIÁVEIS DO MODAL EXCLUSÃO ---
     private bool modalExclusaoVisivel = false;
     private Usuario? usuarioParaExcluir;
 
+    // ── Paginação ─────────────────────────────────────────
+    private const int ITENS_POR_PAGINA = 10;
+    private int paginaUsuarios = 1;
+    private int paginaLogs = 1;
+
+    // ── Ciclo de vida ─────────────────────────────────────
+
     protected override async Task OnInitializedAsync()
     {
-        if (!Estado.EstadoLogado || !Estado.EhAdmin) { Navigation.NavigateTo("/"); return; }
+        if (!Estado.EstadoLogado || !Estado.EhAdmin)
+        {
+            Navigation.NavigateTo("/");
+            return;
+        }
+
         await CarregarDados();
     }
 
     private async Task CarregarDados()
     {
-        // Simula um pequeno delay para mostrar o loading se necessário, ou apenas carrega
         await Task.Yield();
         listaUsuarios = BancoService.ObterUsuariosComRostos() ?? new List<Usuario>();
         tabelaLogs = BancoService.ObterLogs() ?? new DataTable();
         StateHasChanged();
     }
 
+    // ── Navegação de abas ─────────────────────────────────
+
     private void MudarAba(string aba)
     {
         abaAtiva = aba;
         termoPesquisa = "";
         mensagemFeedback = null;
+        paginaUsuarios = 1;
+        paginaLogs = 1;
         _ = CarregarDados();
     }
 
-    // --- LÓGICA DO MODAL EDIÇÃO ---
+    private void LimparFiltros()
+    {
+        filtroTipoAcao = "";
+        termoPesquisa = "";
+        filtroDataInicio = null;
+        filtroDataFim = null;
+        paginaLogs = 1;
+    }
+
+    // ── Filtragem ─────────────────────────────────────────
+
+    private List<Usuario> UtilizadoresFiltrados()
+    {
+        if (listaUsuarios == null) return new List<Usuario>();
+
+        return listaUsuarios
+            .Where(u => string.IsNullOrEmpty(termoPesquisa) ||
+                        u.Nome.Contains(termoPesquisa, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+    }
+
+    private IEnumerable<DataRow> LogsFiltrados()
+    {
+        if (tabelaLogs == null || tabelaLogs.Rows.Count == 0)
+            return new List<DataRow>();
+
+        var rows = tabelaLogs.AsEnumerable();
+
+        if (!string.IsNullOrWhiteSpace(termoPesquisa))
+        {
+            string t = termoPesquisa.ToLower();
+            rows = rows.Where(r =>
+                r.Field<string>("Usuario").ToLower().Contains(t) ||
+                r.Field<string>("Detalhes").ToLower().Contains(t));
+        }
+
+        if (!string.IsNullOrWhiteSpace(filtroTipoAcao))
+            rows = rows.Where(r =>
+                r.Field<string>("Acao").Contains(filtroTipoAcao, StringComparison.OrdinalIgnoreCase));
+
+        if (filtroDataInicio.HasValue)
+            rows = rows.Where(r => r.Field<DateTime>("DataHora").Date >= filtroDataInicio.Value.Date);
+
+        if (filtroDataFim.HasValue)
+            rows = rows.Where(r => r.Field<DateTime>("DataHora").Date <= filtroDataFim.Value.Date);
+
+        return rows.OrderByDescending(r => r.Field<DateTime>("DataHora"));
+    }
+
+    private int ContarTipo(string tipo)
+    {
+        if (tabelaLogs == null || tabelaLogs.Rows.Count == 0) return 0;
+
+        return tabelaLogs.AsEnumerable()
+            .Count(r => r.Field<string>("Acao").Contains(tipo, StringComparison.OrdinalIgnoreCase));
+    }
+
+    // ── Helpers de CSS ────────────────────────────────────
+
+    private string ObterClasseBadgeLog(string tipo)
+    {
+        if (tipo.Contains("Exclusão")) return "type-red";
+        if (tipo.Contains("Alteração")) return "type-amber";
+        if (tipo.Contains("Cadastro")) return "type-blue";
+        if (tipo.Contains("Criação")) return "type-green";
+        return "type-gray";
+    }
+
+    private string ObterClasseLinha(string tipo)
+    {
+        if (tipo.Contains("Exclusão")) return "row-danger";
+        if (tipo.Contains("Alteração")) return "row-warning";
+        return "";
+    }
+
+    private string ObterClassePermissao(NivelPermissao p) => p.ToString() switch
+    {
+        "AdminSupremo" => "perm-master",
+        "Admin" => "perm-admin",
+        _ => "perm-user"
+    };
+
+    // ── Modal — Edição ────────────────────────────────────
+
     private void AbrirModalEdicao(Usuario u)
     {
         usuarioEmEdicao = u;
@@ -327,18 +830,24 @@
         if (usuarioEmEdicao != null && usuarioEmEdicao.Permissao != novaPermissaoSelecionada)
         {
             BancoService.AtualizarPermissao(usuarioEmEdicao.Id, novaPermissaoSelecionada);
-            BancoService.RegistrarLog(Estado.UsuarioAtual.Nome ?? "Admin", "Alteração de Nível", $"Mudou {usuarioEmEdicao.Nome} de {usuarioEmEdicao.Permissao} para {novaPermissaoSelecionada}");
-            ExibirFeedback($"Permissão de {usuarioEmEdicao.Nome} atualizada com sucesso.");
+            BancoService.RegistrarLog(
+                Estado.UsuarioAtual.Nome ?? "Admin",
+                "Alteração de Nível",
+                $"Mudou {usuarioEmEdicao.Nome} de {usuarioEmEdicao.Permissao} para {novaPermissaoSelecionada}");
+
+            ExibirFeedback($"Permissão de {usuarioEmEdicao.Nome} atualizada.");
             _ = CarregarDados();
         }
+
         FecharModal();
     }
 
-    // --- LÓGICA DO MODAL EXCLUSÃO ---
-    private void SolicitarExclusao(Usuario usuario)
+    // ── Modal — Exclusão ──────────────────────────────────
+
+    private void SolicitarExclusao(Usuario u)
     {
-        if (IsUserSuperAdmin(usuario)) return; // Proteção extra
-        usuarioParaExcluir = usuario;
+        if (IsUserSuperAdmin(u)) return;
+        usuarioParaExcluir = u;
         modalExclusaoVisivel = true;
     }
 
@@ -353,283 +862,570 @@
         if (usuarioParaExcluir != null)
         {
             BancoService.RemoverUsuario(usuarioParaExcluir.Id);
-            BancoService.RegistrarLog(Estado.UsuarioAtual.Nome ?? "Admin", "Exclusão", $"Removeu o usuário {usuarioParaExcluir.Nome} (ID: {usuarioParaExcluir.Id})");
-            ExibirFeedback($"Usuário {usuarioParaExcluir.Nome} removido.");
+            BancoService.RegistrarLog(
+                Estado.UsuarioAtual.Nome ?? "Admin",
+                "Exclusão",
+                $"Removeu {usuarioParaExcluir.Nome} (ID: {usuarioParaExcluir.Id})");
+
+            ExibirFeedback($"Utilizador {usuarioParaExcluir.Nome} removido.");
             _ = CarregarDados();
         }
+
         FecharModalExclusao();
     }
 
-    // --- UTILITÁRIOS ---
+    // ── Utilitários ───────────────────────────────────────
+
     private async void ExibirFeedback(string msg)
     {
         mensagemFeedback = msg;
         StateHasChanged();
-        await Task.Delay(3000);
+        await Task.Delay(3500);
         mensagemFeedback = null;
         StateHasChanged();
     }
 
     private void IrParaCadastro() => Navigation.NavigateTo("/cadastro");
     private void VoltarParaUserLogado() => Navigation.NavigateTo("/UserLogado");
-    private bool IsUserSuperAdmin(Usuario u) => u != null && (u.Nome.Trim().ToLower() == "guilherme" || u.Permissao.ToString() == "AdminSupremo");
 
-    private string ObterClassePermissao(NivelPermissao p)
-    {
-        return p.ToString() switch
-        {
-            "AdminSupremo" => "p-master",
-            "Admin" => "p-admin",
-            _ => "p-user"
-        };
-    }
-
-    private IEnumerable<DataRow> FiltrarLogs()
-    {
-        if (tabelaLogs == null || tabelaLogs.Rows.Count == 0) return new List<DataRow>();
-        var rows = tabelaLogs.AsEnumerable();
-
-        if (!string.IsNullOrWhiteSpace(termoPesquisa))
-        {
-            string t = termoPesquisa.ToLower();
-            rows = rows.Where(r => r.Field<string>("Usuario").ToLower().Contains(t) || r.Field<string>("Detalhes").ToLower().Contains(t));
-        }
-        if (!string.IsNullOrWhiteSpace(filtroTipoAcao)) rows = rows.Where(r => r.Field<string>("Acao").Contains(filtroTipoAcao, StringComparison.OrdinalIgnoreCase));
-        if (filtroDataInicio.HasValue) rows = rows.Where(r => r.Field<DateTime>("DataHora").Date >= filtroDataInicio.Value.Date);
-        if (filtroDataFim.HasValue) rows = rows.Where(r => r.Field<DateTime>("DataHora").Date <= filtroDataFim.Value.Date);
-
-        return rows.OrderByDescending(r => r.Field<DateTime>("DataHora"));
-    }
+    private bool IsUserSuperAdmin(Usuario u) =>
+        u != null &&
+        (u.Nome.Trim().ToLower() == "guilherme" ||
+         u.Permissao.ToString() == "AdminSupremo");
 }
 
 <style>
-    :root {
-        --bg-app: #f8fafc;
-        --sidebar-bg: #ffffff;
-        --card-bg: #ffffff;
-        --primary-dark: #1e293b;
-        --primary-accent: #3b82f6;
-        --text-main: #334155;
-        --text-light: #94a3b8;
-        --border-subtle: #e2e8f0;
-        --danger: #ef4444;
-        --success: #10b981;
-    }
+    @@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap');
 
-    * {
+    *, *::before, *::after {
         box-sizing: border-box;
-        font-family: 'Inter', -apple-system, sans-serif;
+        margin: 0;
+        padding: 0;
     }
 
-    .admin-layout {
-        display: flex;
-        height: 100vh;
-        background-color: var(--bg-app);
-        color: var(--text-main);
+    :root {
+        --bg: #f0f2f5;
+        --surface: #ffffff;
+        --border: #e2e5ea;
+        --text: #111318;
+        --muted: #6b7280;
+        --dim: #9ca3af;
+        --accent: #1a56db;
+        --green: #16a34a;
+        --green-bg: #f0fdf4;
+        --green-br: #bbf7d0;
+        --red: #dc2626;
+        --red-bg: #fef2f2;
+        --red-br: #fecaca;
+        --red-row: #fff8f8;
+        --amber: #d97706;
+        --amber-bg: #fffbeb;
+        --amber-br: #fde68a;
+        --amber-row: #fffef5;
+        --blue-bg: #eff6ff;
+        --blue-br: #dbeafe;
+        --radius: 14px;
+        --shadow: 0 4px 24px rgba(0,0,0,0.07);
+        --nav-w: 200px;
     }
 
-    .sidebar {
-        width: 260px;
-        background: var(--sidebar-bg);
-        border-right: 1px solid var(--border-subtle);
-        display: flex;
-        flex-direction: column;
-        padding: 24px;
+    body {
+        font-family: 'DM Sans', sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        -webkit-font-smoothing: antialiased;
+        min-height: 100vh;
     }
 
-    .sidebar-header {
-        margin-bottom: 40px;
-        padding-left: 10px;
-    }
-
-    .brand-logo {
-        font-size: 20px;
-        font-weight: 800;
-        color: var(--primary-dark);
-    }
-
-    .brand-dot {
-        color: var(--primary-accent);
-    }
-
-    .brand-subtitle {
-        font-size: 12px;
-        color: var(--text-light);
-        margin-top: 4px;
-        font-weight: 500;
-    }
-
-    .nav-menu {
-        flex: 1;
+    .page {
+        min-height: 100vh;
         display: flex;
         flex-direction: column;
-        gap: 8px;
     }
 
-    .nav-label {
-        font-size: 11px;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-        color: var(--text-light);
-        font-weight: 700;
-        margin: 0 0 10px 10px;
-    }
-
-    .nav-link {
+    /* ══ TOPBAR ══════════════════════════════════════════ */
+    .topbar {
         display: flex;
         align-items: center;
-        gap: 12px;
-        width: 100%;
-        padding: 12px 16px;
-        border: none;
-        background: transparent;
-        color: #64748b;
-        font-size: 14px;
-        font-weight: 500;
-        border-radius: 8px;
-        cursor: pointer;
-        transition: all 0.25s ease;
+        justify-content: space-between;
+        padding: 0 32px;
+        height: 60px;
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        position: sticky;
+        top: 0;
+        z-index: 100;
     }
 
-        .nav-link:hover {
-            background-color: #f1f5f9;
-            color: var(--primary-dark);
-            padding-left: 20px;
-        }
-
-        .nav-link.active {
-            background-color: var(--primary-dark);
-            color: #ffffff;
-            font-weight: 600;
-            box-shadow: 0 4px 15px rgba(30, 41, 59, 0.25);
-            transform: scale(1.02);
-        }
-
-            .nav-link.active .icon {
-                filter: grayscale(1) brightness(2);
-            }
-
-    .sidebar-footer {
-        border-top: 1px solid var(--border-subtle);
-        padding-top: 20px;
-    }
-
-    .user-card {
+    .brand {
         display: flex;
         align-items: center;
         gap: 10px;
-        margin-bottom: 12px;
-        padding: 8px;
-        border-radius: 8px;
-        background: #f8fafc;
+        font-size: 16px;
+        font-weight: 600;
+        letter-spacing: -0.3px;
     }
 
-    .avatar {
+    .brand-lock {
         width: 32px;
         height: 32px;
-        background: var(--primary-dark);
+        background: var(--text);
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         color: white;
-        border-radius: 6px;
-        display: grid;
-        place-items: center;
-        font-size: 14px;
-        font-weight: bold;
+        flex-shrink: 0;
     }
 
-    .user-info {
+        .brand-lock svg {
+            width: 16px;
+            height: 16px;
+        }
+
+    .topbar-right {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .admin-info {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 6px 10px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+    }
+
+    .admin-avatar {
+        width: 28px;
+        height: 28px;
+        background: var(--text);
+        color: white;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: 700;
+    }
+
+    .admin-meta {
         display: flex;
         flex-direction: column;
     }
 
-    .u-name {
-        font-size: 13px;
-        font-weight: 700;
-        color: var(--primary-dark);
-    }
-
-    .u-role {
-        font-size: 11px;
-        color: var(--text-light);
-    }
-
-    .logout-link {
-        background: none;
-        border: none;
+    .admin-name {
         font-size: 12px;
-        color: var(--danger);
-        cursor: pointer;
-        padding-left: 8px;
-        opacity: 0.8;
+        font-weight: 600;
+        color: var(--text);
+        line-height: 1.2;
     }
 
-        .logout-link:hover {
-            text-decoration: underline;
-            opacity: 1;
+    .admin-role {
+        font-size: 11px;
+        color: var(--muted);
+    }
+
+    .btn-logout {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        padding: 7px 14px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: transparent;
+        font-size: 13px;
+        font-weight: 500;
+        font-family: 'DM Sans', sans-serif;
+        color: var(--muted);
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+
+        .btn-logout:hover {
+            border-color: var(--red);
+            color: var(--red);
+            background: var(--red-bg);
         }
 
-    .main-content {
-        flex: 1;
-        padding: 32px 48px;
-        overflow-y: auto;
-    }
-
-    .top-header {
+    /* ══ SIDE NAV ════════════════════════════════════════ */
+    .side-nav {
+        position: fixed;
+        left: 28px;
+        top: 50%;
+        transform: translateY(-50%);
+        z-index: 90;
         display: flex;
-        justify-content: space-between;
-        align-items: flex-end;
-        margin-bottom: 30px;
+        flex-direction: column;
+        gap: 4px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 8px;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.05);
+        width: var(--nav-w);
     }
 
-    .header-titles h1 {
-        font-size: 24px;
+    .nav-divider {
+        height: 1px;
+        background: var(--border);
+        margin: 4px;
+        border-radius: 1px;
+    }
+
+    .nav-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid transparent;
+        border-radius: 10px;
+        background: transparent;
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 500;
+        font-family: 'DM Sans', sans-serif;
+        cursor: pointer;
+        transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+        text-align: left;
+    }
+
+        .nav-item:hover {
+            background: var(--bg);
+            color: var(--text);
+            transform: translateX(3px);
+        }
+
+    .nav-item--active {
+        background: var(--text) !important;
+        color: white !important;
+        border-color: transparent;
+        box-shadow: 0 4px 16px rgba(17,19,24,0.22);
+        transform: none !important;
+    }
+
+    .nav-icon-wrap {
+        width: 28px;
+        height: 28px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 7px;
+        flex-shrink: 0;
+        transition: background 0.2s;
+    }
+
+    .nav-item:not(.nav-item--active) .nav-icon-wrap {
+        background: var(--bg);
+    }
+
+    .nav-item--active .nav-icon-wrap {
+        background: rgba(255,255,255,0.15);
+    }
+
+    .nav-label {
+        flex: 1;
+    }
+
+    .nav-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 20px;
+        height: 18px;
+        padding: 0 5px;
+        background: var(--bg);
+        color: var(--muted);
+        border-radius: 99px;
+        font-size: 10px;
         font-weight: 700;
-        color: var(--primary-dark);
-        margin: 0;
+        border: 1px solid var(--border);
     }
 
-    .header-titles p {
-        margin: 6px 0 0;
-        color: var(--text-light);
-        font-size: 14px;
+    .nav-item--active .nav-badge {
+        background: rgba(255,255,255,0.2);
+        color: white;
+        border-color: transparent;
     }
 
-    .btn-action {
-        background: var(--primary-dark);
+    .nav-badge--alert {
+        background: var(--red-bg);
+        color: var(--red);
+        border-color: var(--red-br);
+    }
+
+    .nav-item--active .nav-badge--alert {
+        background: rgba(255,255,255,0.2);
+        color: white;
+        border-color: transparent;
+    }
+
+    /* ══ MAIN ════════════════════════════════════════════ */
+    .main {
+        flex: 1;
+        padding: 28px 40px 28px calc(var(--nav-w) + 60px);
+        max-width: calc(1100px + var(--nav-w) + 60px);
+        margin: 0 auto;
+        width: 100%;
+        position: relative;
+    }
+
+    /* ══ VIEW TRANSITIONS ════════════════════════════════ */
+    .view {
+        position: absolute;
+        top: 28px;
+        left: calc(var(--nav-w) + 60px);
+        right: 40px;
+        transition: opacity 0.28s ease, transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+        will-change: opacity, transform;
+    }
+
+    .view--visible {
+        opacity: 1;
+        transform: translateY(0);
+        pointer-events: all;
+        position: relative;
+        top: auto;
+        left: auto;
+        right: auto;
+    }
+
+    .view--hidden {
+        opacity: 0;
+        transform: translateY(10px);
+        pointer-events: none;
+        position: absolute;
+        top: 28px;
+        left: calc(var(--nav-w) + 60px);
+        right: 40px;
+    }
+
+    /* ══ SECTION HEADER ══════════════════════════════════ */
+    .section-header {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        margin-bottom: 20px;
+    }
+
+    .section-title {
+        font-size: 21px;
+        font-weight: 600;
+        letter-spacing: -0.4px;
+        color: var(--text);
+    }
+
+    .section-sub {
+        font-size: 13px;
+        color: var(--muted);
+        margin-top: 4px;
+    }
+
+    .filter-chip {
+        display: inline-flex;
+        align-items: center;
+        padding: 3px 12px;
+        background: var(--blue-bg);
+        color: var(--accent);
+        border: 1px solid var(--blue-br);
+        border-radius: 99px;
+        font-size: 16px;
+    }
+
+    .btn-primary {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 9px 18px;
+        background: var(--accent);
         color: white;
         border: none;
-        padding: 10px 20px;
-        border-radius: 6px;
-        font-weight: 600;
+        border-radius: 8px;
         font-size: 13px;
+        font-weight: 600;
+        font-family: 'DM Sans', sans-serif;
         cursor: pointer;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        transition: transform 0.2s;
+        transition: all 0.15s;
+        box-shadow: 0 2px 10px rgba(26,86,219,0.25);
+        flex-shrink: 0;
     }
 
-        .btn-action:hover {
-            transform: translateY(-2px);
+        .btn-primary:hover {
+            background: #1648c0;
+            transform: translateY(-1px);
         }
 
-    .panel-card {
-        background: var(--card-bg);
-        border-radius: 12px;
-        border: 1px solid var(--border-subtle);
-        box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+    .btn-clear {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 7px 14px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--surface);
+        font-size: 12px;
+        font-weight: 500;
+        font-family: 'DM Sans', sans-serif;
+        color: var(--muted);
+        cursor: pointer;
+        transition: all 0.15s;
+        flex-shrink: 0;
+    }
+
+        .btn-clear:hover {
+            border-color: var(--red-br);
+            color: var(--red);
+            background: var(--red-bg);
+        }
+
+    /* ══ STAT CARDS ══════════════════════════════════════ */
+    .stats-row {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 10px;
+        margin-bottom: 24px;
+    }
+
+    .stat-card {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 16px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        cursor: pointer;
+        transition: all 0.15s;
+        text-align: left;
+        font-family: 'DM Sans', sans-serif;
+    }
+
+        .stat-card:hover {
+            border-color: var(--dim);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+            transform: translateY(-1px);
+        }
+
+    .stat-card--active {
+        border-color: var(--accent) !important;
+        background: var(--blue-bg) !important;
+        box-shadow: 0 0 0 3px rgba(26,86,219,0.1) !important;
+        transform: translateY(-1px);
+    }
+
+    .stat-card--green.stat-card--active {
+        border-color: var(--green) !important;
+        background: var(--green-bg) !important;
+        box-shadow: 0 0 0 3px rgba(22,163,74,0.1) !important;
+    }
+
+    .stat-card--amber.stat-card--active {
+        border-color: var(--amber) !important;
+        background: var(--amber-bg) !important;
+        box-shadow: 0 0 0 3px rgba(217,119,6,0.1) !important;
+    }
+
+    .stat-card--red.stat-card--active {
+        border-color: var(--red) !important;
+        background: var(--red-bg) !important;
+        box-shadow: 0 0 0 3px rgba(220,38,38,0.1) !important;
+    }
+
+    .stat-card--blue.stat-card--active {
+        border-color: var(--accent) !important;
+        background: var(--blue-bg) !important;
+        box-shadow: 0 0 0 3px rgba(26,86,219,0.1) !important;
+    }
+
+    .stat-icon {
+        width: 34px;
+        height: 34px;
+        border-radius: 9px;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .stat-icon--all {
+        background: #f1f5f9;
+        color: var(--muted);
+        border: 1px solid var(--border);
+    }
+
+    .stat-icon--green {
+        background: var(--green-bg);
+        color: var(--green);
+        border: 1px solid var(--green-br);
+    }
+
+    .stat-icon--blue {
+        background: var(--blue-bg);
+        color: var(--accent);
+        border: 1px solid var(--blue-br);
+    }
+
+    .stat-icon--amber {
+        background: var(--amber-bg);
+        color: var(--amber);
+        border: 1px solid var(--amber-br);
+    }
+
+    .stat-icon--red {
+        background: var(--red-bg);
+        color: var(--red);
+        border: 1px solid var(--red-br);
+    }
+
+    .stat-body {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+    }
+
+    .stat-num {
+        font-size: 20px;
+        font-weight: 700;
+        letter-spacing: -0.5px;
+        color: var(--text);
+        line-height: 1.1;
+    }
+
+    .stat-label {
+        font-size: 11px;
+        color: var(--muted);
+        margin-top: 1px;
+        white-space: nowrap;
+    }
+
+    /* ══ CARD ════════════════════════════════════════════ */
+    .card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
         overflow: hidden;
     }
 
     .toolbar {
-        padding: 16px 24px;
-        border-bottom: 1px solid var(--border-subtle);
         display: flex;
-        justify-content: space-between;
         align-items: center;
-        background: #fff;
+        gap: 12px;
+        padding: 14px 20px;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .toolbar--logs {
+        flex-wrap: wrap;
     }
 
     .search-box {
         position: relative;
-        width: 300px;
+        flex: 1;
+        min-width: 200px;
     }
 
     .search-icon {
@@ -637,394 +1433,349 @@
         left: 10px;
         top: 50%;
         transform: translateY(-50%);
-        font-size: 12px;
-        opacity: 0.5;
+        color: var(--dim);
+        width: 14px;
+        height: 14px;
     }
 
     .search-box input {
         width: 100%;
-        padding: 9px 12px 9px 30px;
-        border: 1px solid var(--border-subtle);
-        border-radius: 6px;
+        padding: 8px 32px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
         font-size: 13px;
+        font-family: 'DM Sans', sans-serif;
+        color: var(--text);
+        background: var(--bg);
         outline: none;
-        background: #f8fafc;
-        transition: 0.2s;
+        transition: 0.15s;
     }
 
         .search-box input:focus {
+            border-color: var(--accent);
             background: white;
-            border-color: var(--primary-accent);
         }
 
-    .filters-row {
+    .search-clear {
+        position: absolute;
+        right: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: var(--dim);
         display: flex;
-        gap: 12px;
         align-items: center;
+        padding: 2px;
+        transition: color 0.15s;
     }
 
-    .date-picker-group {
+        .search-clear:hover {
+            color: var(--text);
+        }
+
+    .date-group {
         display: flex;
         align-items: center;
         gap: 8px;
-        background: #f8fafc;
-        padding: 5px 10px;
-        border-radius: 6px;
-        border: 1px solid var(--border-subtle);
+        padding: 7px 12px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--bg);
+    }
+
+    .date-icon {
+        color: var(--dim);
+        flex-shrink: 0;
+    }
+
+    .date-group input {
+        border: none;
+        background: transparent;
         font-size: 12px;
-        color: var(--text-light);
+        font-family: 'DM Sans', sans-serif;
+        color: var(--text);
+        outline: none;
     }
 
-        .date-picker-group input {
-            border: none;
-            background: transparent;
-            color: var(--text-main);
-            font-size: 12px;
-            outline: none;
-        }
-
-    .filter-select {
-        padding: 6px 10px;
-        border: 1px solid var(--border-subtle);
-        border-radius: 6px;
-        font-size: 13px;
-        background: white;
+    .date-sep {
+        font-size: 12px;
+        color: var(--dim);
     }
 
-    .pro-table {
+    .result-count {
+        font-size: 12px;
+        color: var(--dim);
+        white-space: nowrap;
+        margin-left: auto;
+    }
+
+    /* ══ TABLE ═══════════════════════════════════════════ */
+    .table-wrap {
+        overflow-x: auto;
+    }
+
+    .data-table {
         width: 100%;
         border-collapse: collapse;
         font-size: 13px;
     }
 
-        .pro-table th {
-            text-align: left;
-            padding: 14px 24px;
-            background: #fcfcfc;
-            color: var(--text-light);
-            font-weight: 600;
-            font-size: 11px;
-            text-transform: uppercase;
-            border-bottom: 1px solid var(--border-subtle);
-        }
-
-        .pro-table td {
-            padding: 16px 24px;
-            border-bottom: 1px solid #f1f5f9;
-            vertical-align: middle;
-            color: var(--text-main);
-        }
-
-        .pro-table tr:hover {
+        .data-table th {
+            padding: 10px 20px;
             background: #fafafa;
+            border-bottom: 1px solid var(--border);
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--dim);
+            text-align: left;
+            white-space: nowrap;
         }
+
+    .th-right {
+        text-align: right !important;
+    }
+
+    .data-table td {
+        padding: 13px 20px;
+        border-bottom: 1px solid #f4f5f7;
+        vertical-align: middle;
+    }
+
+    .data-table tr:last-child td {
+        border-bottom: none;
+    }
+
+    .data-table tbody tr {
+        transition: background 0.1s;
+    }
+
+        .data-table tbody tr:hover td {
+            background: #fafbfc;
+        }
+
+    .row-danger td {
+        background: var(--red-row) !important;
+    }
+
+    .row-danger:hover td {
+        background: #fff0f0 !important;
+    }
+
+    .row-warning td {
+        background: var(--amber-row) !important;
+    }
+
+    .row-warning:hover td {
+        background: #fffbee !important;
+    }
 
     .user-cell {
         display: flex;
         align-items: center;
-        gap: 12px;
+        gap: 10px;
     }
 
-    .table-avatar {
+    .u-avatar {
         width: 32px;
         height: 32px;
         background: #f1f5f9;
-        color: var(--text-main);
-        border-radius: 50%;
-        display: grid;
-        place-items: center;
+        color: #475569;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 13px;
         font-weight: 600;
-        font-size: 12px;
+        flex-shrink: 0;
     }
 
-        .table-avatar.gold {
-            background: #fefce8;
-            color: #b45309;
-            border: 1px solid #fef3c7;
-        }
+    .u-avatar--gold {
+        background: #fefce8;
+        color: #b45309;
+        border: 1px solid #fef3c7;
+    }
 
-    .badge-gold {
+    .u-name {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text);
+        display: block;
+    }
+
+    .badge-master {
         font-size: 9px;
         color: #d97706;
-        font-weight: 800;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        display: block;
+        margin-top: 1px;
+    }
+
+    .log-user-cell {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+    }
+
+    .log-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        flex-shrink: 0;
+    }
+
+    .dot-system {
+        background: var(--dim);
+    }
+
+    .dot-user {
+        background: var(--accent);
     }
 
     .perm-badge {
-        padding: 4px 10px;
-        border-radius: 12px;
+        padding: 3px 9px;
+        border-radius: 99px;
         font-size: 11px;
         font-weight: 600;
         display: inline-block;
+        white-space: nowrap;
     }
 
-    .p-master {
+    .perm-master {
         background: #fefce8;
         color: #854d0e;
         border: 1px solid #fef9c3;
     }
 
-    .p-admin {
-        background: #eff6ff;
+    .perm-admin {
+        background: var(--blue-bg);
         color: #1e40af;
-        border: 1px solid #dbeafe;
+        border: 1px solid var(--blue-br);
     }
 
-    .p-user {
+    .perm-user {
         background: #f1f5f9;
         color: #475569;
         border: 1px solid #e2e8f0;
     }
 
-    .action-buttons {
+    .type-badge {
+        padding: 4px 10px;
+        border-radius: 99px;
+        font-size: 11px;
+        font-weight: 600;
+        display: inline-block;
+        white-space: nowrap;
+    }
+
+    .type-green {
+        background: var(--green-bg);
+        color: var(--green);
+        border: 1px solid var(--green-br);
+    }
+
+    .type-blue {
+        background: var(--blue-bg);
+        color: #2563eb;
+        border: 1px solid var(--blue-br);
+    }
+
+    .type-amber {
+        background: var(--amber-bg);
+        color: var(--amber);
+        border: 1px solid var(--amber-br);
+    }
+
+    .type-red {
+        background: var(--red-bg);
+        color: var(--red);
+        border: 1px solid var(--red-br);
+        font-weight: 700;
+    }
+
+    .type-gray {
+        background: #f1f5f9;
+        color: var(--muted);
+        border: 1px solid var(--border);
+    }
+
+    .td-mono {
+        font-family: 'JetBrains Mono', 'Courier New', monospace;
+        font-size: 11px;
+        color: var(--muted);
+    }
+
+    .td-detail {
+        color: var(--muted);
+        font-size: 12px;
+    }
+
+    .td-label {
+        font-size: 11px;
+        color: var(--dim);
+    }
+
+    .action-group {
         display: flex;
+        align-items: center;
         justify-content: flex-end;
-        gap: 8px;
+        gap: 6px;
     }
 
     .btn-icon {
-        width: 32px;
-        height: 32px;
-        border-radius: 6px;
-        border: 1px solid transparent;
-        background: transparent;
+        width: 30px;
+        height: 30px;
+        border-radius: 7px;
+        border: 1px solid var(--border);
+        background: var(--bg);
+        color: var(--muted);
         cursor: pointer;
-        display: grid;
-        place-items: center;
-        font-size: 14px;
-        transition: all 0.2s;
-    }
-
-        .btn-icon.edit:hover {
-            background: #eff6ff;
-            color: var(--primary-accent);
-            border-color: #dbeafe;
-        }
-
-        .btn-icon.trash:hover {
-            background: #fef2f2;
-            color: var(--danger);
-            border-color: #fee2e2;
-        }
-
-    .text-xs {
-        font-size: 11px;
-    }
-
-    .modal-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0,0,0,0.4);
-        backdrop-filter: blur(2px);
         display: flex;
+        align-items: center;
         justify-content: center;
-        align-items: center;
-        z-index: 1000;
-        animation: fadeIn 0.2s;
+        transition: all 0.15s;
     }
 
-    .modal-box {
-        background: white;
-        border-radius: 12px;
-        width: 400px;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-        border: 1px solid var(--border-subtle);
-        overflow: hidden;
-        animation: scaleIn 0.2s;
-    }
-
-        .modal-box.delete-mode {
-            border-top: 4px solid var(--danger);
+        .btn-icon:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: var(--blue-bg);
         }
 
-    .modal-header {
-        padding: 16px 20px;
-        border-bottom: 1px solid var(--border-subtle);
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        background: #f8fafc;
+    .btn-icon--danger:hover {
+        border-color: var(--red-br);
+        color: var(--red);
+        background: var(--red-bg);
     }
 
-        .modal-header h3 {
-            margin: 0;
-            font-size: 16px;
-            font-weight: 700;
-            color: var(--primary-dark);
-        }
-
-    .text-danger {
-        color: var(--danger) !important;
-    }
-
-    .close-modal {
-        background: none;
-        border: none;
-        font-size: 20px;
-        color: var(--text-light);
-        cursor: pointer;
-    }
-
-    .modal-body {
-        padding: 20px;
-    }
-
-    .form-group {
-        margin-top: 15px;
-    }
-
-        .form-group label {
-            display: block;
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--text-main);
-            margin-bottom: 6px;
-        }
-
-    .form-select {
-        width: 100%;
-        padding: 10px;
-        border-radius: 6px;
-        border: 1px solid var(--border-subtle);
-        font-size: 14px;
-        color: var(--text-main);
-        outline: none;
-    }
-
-    .info-box {
-        margin-top: 20px;
-        font-size: 12px;
-        color: var(--text-light);
-        background: #f8fafc;
-        padding: 10px;
-        border-radius: 6px;
-        border: 1px solid var(--border-subtle);
-    }
-
-    .modal-footer {
-        padding: 16px 20px;
-        border-top: 1px solid var(--border-subtle);
-        display: flex;
-        justify-content: flex-end;
-        gap: 10px;
-        background: #fff;
-    }
-
-    .btn-cancel {
-        padding: 8px 16px;
-        border: 1px solid var(--border-subtle);
-        background: white;
-        border-radius: 6px;
-        font-weight: 500;
-        cursor: pointer;
-        color: var(--text-main);
-    }
-
-    .btn-confirm {
-        padding: 8px 16px;
-        border: none;
-        background: var(--primary-dark);
-        color: white;
-        border-radius: 6px;
-        font-weight: 500;
-        cursor: pointer;
-    }
-
-        .btn-confirm.btn-danger {
-            background: var(--danger);
-        }
-
-        .btn-confirm:hover {
-            opacity: 0.9;
-        }
-
-    .feedback-toast {
-        position: fixed;
-        bottom: 30px;
-        right: 30px;
-        background: var(--primary-dark);
-        color: white;
-        padding: 12px 20px;
-        border-radius: 8px;
-        box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        animation: slideIn 0.3s;
-        z-index: 1100;
+    .cell-empty {
+        text-align: center;
+        padding: 50px;
+        color: var(--dim);
         font-size: 13px;
     }
 
-    .check-icon {
-        background: rgba(255,255,255,0.2);
-        width: 20px;
-        height: 20px;
-        border-radius: 50%;
-        display: grid;
-        place-items: center;
-        font-size: 10px;
-    }
-
-    .close-btn {
-        background: none;
-        border: none;
-        color: rgba(255,255,255,0.6);
-        cursor: pointer;
-        font-size: 16px;
-        margin-left: 10px;
-    }
-
-    .status-badge {
-        padding: 2px 8px;
-        border-radius: 12px;
-        font-size: 11px;
-        font-weight: 600;
-    }
-
-    .b-blue {
-        background: #eff6ff;
-        color: #2563eb;
-    }
-
-    .b-orange {
-        background: #fff7ed;
-        color: #ea580c;
-    }
-
-    .b-red {
-        background: #fef2f2;
-        color: #dc2626;
-    }
-
-    .text-right {
-        text-align: right;
-    }
-
-    .text-secondary {
-        color: var(--text-light);
-    }
-
-    .fw-bold {
-        font-weight: 600;
-    }
-
-    .mono-font {
-        font-family: 'JetBrains Mono', monospace;
-        font-size: 12px;
+    .cell-loading {
+        text-align: center !important;
+        padding: 50px !important;
+        color: var(--dim);
+        font-size: 13px;
     }
 
     .spinner {
-        display: inline-block;
-        width: 20px;
-        height: 20px;
-        border: 3px solid rgba(0,0,0,0.1);
+        width: 18px;
+        height: 18px;
+        border: 2px solid var(--border);
+        border-top-color: var(--accent);
         border-radius: 50%;
-        border-top-color: var(--primary-accent);
-        animation: spin 1s ease-in-out infinite;
+        animation: spin 0.8s linear infinite;
+        display: inline-block;
         vertical-align: middle;
-        margin-right: 10px;
+        margin-right: 8px;
     }
 
     @@keyframes spin {
@@ -1032,6 +1783,309 @@
             transform: rotate(360deg);
         }
     }
+
+    /* ══ PAGINAÇÃO ═══════════════════════════════════════ */
+    .pagination {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 14px 20px;
+        border-top: 1px solid var(--border);
+    }
+
+    .page-btn {
+        width: 32px;
+        height: 32px;
+        border-radius: 7px;
+        border: 1px solid var(--border);
+        background: var(--bg);
+        color: var(--text);
+        font-size: 13px;
+        font-family: 'DM Sans', sans-serif;
+        font-weight: 500;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.15s;
+    }
+
+        .page-btn:hover:not(:disabled) {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: var(--blue-bg);
+        }
+
+    .page-btn--active {
+        background: var(--accent);
+        color: white;
+        border-color: var(--accent);
+        font-weight: 600;
+    }
+
+        .page-btn--active:hover {
+            background: var(--accent) !important;
+            color: white !important;
+        }
+
+    .page-btn:disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
+    }
+
+    .page-ellipsis {
+        font-size: 13px;
+        color: var(--dim);
+        padding: 0 4px;
+    }
+
+    .page-info {
+        margin-left: 8px;
+        font-size: 12px;
+        color: var(--dim);
+    }
+
+    /* ══ TOAST ═══════════════════════════════════════════ */
+    .toast {
+        position: fixed;
+        bottom: 28px;
+        right: 28px;
+        background: var(--text);
+        color: white;
+        padding: 12px 18px;
+        border-radius: 10px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 13px;
+        font-weight: 500;
+        z-index: 500;
+        animation: slideUp 0.3s ease;
+    }
+
+    .toast-icon {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: var(--green);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .toast-close {
+        background: none;
+        border: none;
+        color: rgba(255,255,255,0.5);
+        cursor: pointer;
+        padding: 0;
+        margin-left: 6px;
+        display: flex;
+        align-items: center;
+    }
+
+        .toast-close:hover {
+            color: white;
+        }
+
+    @@keyframes slideUp {
+        from {
+            transform: translateY(16px);
+            opacity: 0;
+        }
+
+        to {
+            transform: translateY(0);
+            opacity: 1;
+        }
+    }
+
+    /* ══ MODAIS ══════════════════════════════════════════ */
+    .modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.35);
+        backdrop-filter: blur(3px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 200;
+        animation: fadeIn 0.2s;
+    }
+
+    .modal-box {
+        background: var(--surface);
+        border-radius: var(--radius);
+        width: 420px;
+        border: 1px solid var(--border);
+        box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+        overflow: hidden;
+        animation: scaleIn 0.2s;
+    }
+
+    .modal-box--danger {
+        border-top: 3px solid var(--red);
+    }
+
+    .modal-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 18px 20px;
+        border-bottom: 1px solid var(--border);
+        background: #fafafa;
+    }
+
+    .modal-title-group {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .modal-icon {
+        width: 36px;
+        height: 36px;
+        background: var(--blue-bg);
+        border: 1px solid var(--blue-br);
+        border-radius: 9px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--accent);
+        flex-shrink: 0;
+    }
+
+    .modal-icon--danger {
+        background: var(--red-bg);
+        border-color: var(--red-br);
+        color: var(--red);
+    }
+
+    .modal-header h3 {
+        font-size: 15px;
+        font-weight: 700;
+        color: var(--text);
+        line-height: 1.2;
+    }
+
+    .modal-header p {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 1px;
+    }
+
+    .danger-title {
+        color: var(--red) !important;
+    }
+
+    .close-btn {
+        background: none;
+        border: none;
+        color: var(--dim);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        padding: 4px;
+        border-radius: 5px;
+        transition: 0.15s;
+    }
+
+        .close-btn:hover {
+            background: var(--bg);
+            color: var(--text);
+        }
+
+    .modal-body {
+        padding: 20px;
+    }
+
+    .form-label {
+        display: block;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text);
+        margin-bottom: 8px;
+    }
+
+    .form-sel {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        font-size: 14px;
+        font-family: 'DM Sans', sans-serif;
+        color: var(--text);
+        background: var(--bg);
+        outline: none;
+    }
+
+        .form-sel:focus {
+            border-color: var(--accent);
+            background: white;
+        }
+
+    .warning-box {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 12px 14px;
+        background: var(--red-bg);
+        border: 1px solid var(--red-br);
+        border-radius: 8px;
+        font-size: 13px;
+        color: var(--red);
+    }
+
+        .warning-box svg {
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+    .modal-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        padding: 16px 20px;
+        border-top: 1px solid var(--border);
+        background: #fafafa;
+    }
+
+    .btn-cancel {
+        padding: 8px 16px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: white;
+        font-size: 13px;
+        font-weight: 500;
+        font-family: 'DM Sans', sans-serif;
+        color: var(--muted);
+        cursor: pointer;
+        transition: 0.15s;
+    }
+
+        .btn-cancel:hover {
+            border-color: var(--text);
+            color: var(--text);
+        }
+
+    .btn-danger {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 8px;
+        background: var(--red);
+        color: white;
+        font-size: 13px;
+        font-weight: 600;
+        font-family: 'DM Sans', sans-serif;
+        cursor: pointer;
+        transition: 0.15s;
+    }
+
+        .btn-danger:hover {
+            background: #b91c1c;
+        }
 
     @@keyframes fadeIn {
         from {
@@ -1045,7 +2099,7 @@
 
     @@keyframes scaleIn {
         from {
-            transform: scale(0.95);
+            transform: scale(0.96);
             opacity: 0;
         }
 
@@ -1055,15 +2109,49 @@
         }
     }
 
-    @@keyframes slideIn {
-        from {
-            transform: translateY(20px);
-            opacity: 0;
+    /* ══ RESPONSIVE ══════════════════════════════════════ */
+    @@media (max-width: 1024px) {
+        :root {
+            --nav-w: 56px;
         }
 
-        to {
-            transform: translateY(0);
-            opacity: 1;
+        .nav-label, .nav-badge {
+            display: none;
+        }
+
+        .nav-item {
+            justify-content: center;
+            padding: 10px;
+        }
+
+        .nav-icon-wrap {
+            width: 32px;
+            height: 32px;
+        }
+    }
+
+    @@media (max-width: 768px) {
+        .side-nav {
+            display: none;
+        }
+
+        .main {
+            padding: 20px 16px;
+        }
+
+        .view--visible {
+            position: relative;
+            top: auto;
+            left: auto;
+            right: auto;
+        }
+
+        .stats-row {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .modal-box {
+            width: calc(100vw - 32px);
         }
     }
 </style>
