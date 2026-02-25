@@ -8,6 +8,7 @@ builder.Services.AddScoped<BaseSql>();
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 builder.Services.AddSingleton<EstadoApp>();
+builder.Services.AddSingleton<TemaService>();
 
 var app = builder.Build();
 

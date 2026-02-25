@@ -13,10 +13,11 @@
 @implements IDisposable
 @inject NavigationManager Navigation
 @inject EstadoApp Estado
+@inject TemaService Tema
 
 <PageTitle>VaultFace — Acesso</PageTitle>
 
-<div class="page">
+<div class="page @(Tema.ModoEscuro ? "dark" : "")">
 
     @* TOPBAR *@
     <header class="topbar">
@@ -30,6 +31,28 @@
             VaultFace
         </div>
         <div class="topbar-right">
+            <button class="btn-tema" @onclick="Tema.Alternar" title="@(Tema.ModoEscuro ? "Modo claro" : "Modo escuro")">
+                @if (Tema.ModoEscuro)
+                {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                        <circle cx="12" cy="12" r="5" />
+                        <line x1="12" y1="1" x2="12" y2="3" />
+                        <line x1="12" y1="21" x2="12" y2="23" />
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                        <line x1="1" y1="12" x2="3" y2="12" />
+                        <line x1="21" y1="12" x2="23" y2="12" />
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                    </svg>
+                }
+                else
+                {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                    </svg>
+                }
+            </button>
             <span class="topbar-status @(cameraAtiva ? "status--live" : "status--idle")">
                 <span class="status-dot"></span>
                 @(cameraAtiva ? "Em execução" : "Em espera")
@@ -211,7 +234,7 @@
     private const int FRAMES_PARA_LOGIN = 6;
     private const double LIMIAR_CONFIANCA = 60.0;
     private const int FACE_SIZE = 200;
-    
+
     private const int FRAMES_DEBOUNCE_DESCIDA = 4;
     private int _framesSemsinal = 0;
 
@@ -446,14 +469,21 @@
         padding: 0;
     }
 
+    /* ══════════════════════════════════════════
+           MODO CLARO (padrão)
+        ══════════════════════════════════════════ */
     :root {
         --bg: #f0f2f5;
+        --bg2: #f8f9fb;
         --surface: #ffffff;
+        --surface2: #f4f5f8;
         --border: #e2e5ea;
+        --border2: #eceef2;
         --text: #111318;
         --muted: #6b7280;
         --dim: #9ca3af;
         --accent: #1a56db;
+        --accent-glow: rgba(26,86,219,0.12);
         --amber: #d97706;
         --red: #dc2626;
         --green: #16a34a;
@@ -464,6 +494,90 @@
         --radius: 14px;
         --shadow: 0 4px 28px rgba(0,0,0,0.08);
     }
+
+    /* ══════════════════════════════════════════
+           MODO ESCURO — sobrescreve as variáveis
+        ══════════════════════════════════════════ */
+    .dark {
+        --bg: #08090c;
+        --bg2: #0e1016;
+        --surface: #131620;
+        --surface2: #1b1f2e;
+        --border: #252836;
+        --border2: #1e2130;
+        --text: #e6e8f0;
+        --muted: #7b82a0;
+        --dim: #454c66;
+        --accent: #4f74f9;
+        --accent-glow: rgba(79,116,249,0.18);
+        --amber: #fbbf24;
+        --red: #f87171;
+        --green: #22c55e;
+        --green-bg: #071a0f;
+        --green-br: #14532d;
+        --red-bg: #1a0808;
+        --red-br: #7f1d1d;
+        --shadow: 0 8px 32px rgba(0,0,0,0.6);
+    }
+
+        /* Extras do dark mode que vão além de variáveis */
+        .dark .brand-lock {
+            background: linear-gradient(135deg, var(--accent), #7b5cf6);
+            box-shadow: 0 2px 8px rgba(79,116,249,0.4);
+        }
+
+        .dark .info-badge {
+            background: #080f2a;
+            border-color: #1e3a8a;
+        }
+
+        .dark .feature-icon {
+            box-shadow: none;
+        }
+
+        .dark .btn-stop:hover {
+            background: #2d1010;
+            border-color: var(--red);
+        }
+
+        .dark .btn-primary {
+            box-shadow: 0 2px 12px rgba(79,116,249,0.4);
+        }
+
+            .dark .btn-primary:hover {
+                background: #3d62e8;
+                box-shadow: 0 4px 18px rgba(79,116,249,0.5);
+            }
+
+        .dark .live-dot {
+            box-shadow: 0 0 6px var(--green);
+        }
+
+        .dark .status--live {
+            background: var(--green-bg);
+            border-color: var(--green-br);
+        }
+
+    /* ══════════════════════════════════════════
+           ESTILOS COMUNS
+        ══════════════════════════════════════════ */
+
+    .btn-tema {
+        background: none;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 7px 9px;
+        cursor: pointer;
+        color: var(--muted);
+        display: flex;
+        align-items: center;
+        transition: all 0.15s;
+    }
+
+        .btn-tema:hover {
+            background: var(--surface2);
+            color: var(--text);
+        }
 
     body {
         font-family: 'DM Sans', sans-serif;
@@ -477,6 +591,7 @@
         min-height: 100vh;
         display: flex;
         flex-direction: column;
+        background: var(--bg);
     }
 
     /* ── TOPBAR ── */
@@ -496,6 +611,7 @@
         font-size: 16px;
         font-weight: 600;
         letter-spacing: -0.3px;
+        color: var(--text);
     }
 
     .brand-lock {
@@ -676,6 +792,7 @@
             font-size: 16px;
             font-weight: 600;
             letter-spacing: -0.3px;
+            color: var(--text);
         }
 
         .camera-card-header p {
@@ -686,7 +803,7 @@
 
     /* ── VIEWPORT ── */
     .viewport {
-        background: #0e0e0e;
+        background: #000;
         aspect-ratio: 4 / 3;
         position: relative;
         display: flex;
@@ -707,7 +824,7 @@
         display: block;
     }
 
-    /* Guia oval com SVG (igual ao Cadastro) */
+    /* Guia oval */
     .face-guide {
         position: absolute;
         top: 50%;
@@ -744,7 +861,7 @@
         }
     }
 
-    /* Barra de progresso de scan */
+    /* Barra de progresso */
     .scan-progress-wrap {
         position: absolute;
         bottom: 0;
