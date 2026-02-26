@@ -251,8 +251,16 @@ namespace PapAtualizacaoBeleza
                             UsuarioId INT IDENTITY(1,1) PRIMARY KEY,
                             Nome NVARCHAR(100) NOT NULL,
                             DataCadastro DATETIME NOT NULL,
-                            NivelPermissao INT NOT NULL DEFAULT 1 
+                            NivelPermissao INT NOT NULL DEFAULT 1,
+                            Email NVARCHAR(200) NULL,
+                            EmailConfirmado BIT NOT NULL DEFAULT 0
                         );
+
+                    IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Usuarios') AND name = 'Email')
+                        ALTER TABLE Usuarios ADD Email NVARCHAR(200) NULL;
+
+                    IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Usuarios') AND name = 'EmailConfirmado')
+                        ALTER TABLE Usuarios ADD EmailConfirmado BIT NOT NULL DEFAULT 0;
 
                     IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Rostos' AND xtype='U')
                         CREATE TABLE Rostos (
@@ -622,6 +630,42 @@ namespace PapAtualizacaoBeleza
                     cmd.ExecuteNonQuery();
                 }
             }
+        }
+
+        public void AtualizarEmail(int usuarioId, string email, bool confirmado = false)
+        {
+            using (SqlConnection conexao = new(_connectionStringAtual))
+            {
+                conexao.Open();
+                string sql = "UPDATE Usuarios SET Email = @Email, EmailConfirmado = @EmailConfirmado WHERE UsuarioId = @UsuarioId";
+                using (SqlCommand cmd = new(sql, conexao))
+                {
+                    cmd.Parameters.AddWithValue("@Email", (object?)email ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@EmailConfirmado", confirmado);
+                    cmd.Parameters.AddWithValue("@UsuarioId", usuarioId);
+                    cmd.ExecuteNonQuery();
+                }
+            }
+        }
+
+        public (string? Email, bool EmailConfirmado) ObterEmailUserMaster()
+        {
+            using (SqlConnection conexao = new(_connectionStringAtual))
+            {
+                conexao.Open();
+                string sql = "SELECT TOP 1 Email, EmailConfirmado FROM Usuarios WHERE NivelPermissao = 3";
+                using (SqlCommand cmd = new(sql, conexao))
+                using (SqlDataReader reader = cmd.ExecuteReader())
+                {
+                    if (reader.Read())
+                    {
+                        string? email = reader.IsDBNull(0) ? null : reader.GetString(0);
+                        bool confirmado = reader.GetBoolean(1);
+                        return (email, confirmado);
+                    }
+                }
+            }
+            return (null, false);
         }
 
         public void RemoverUsuario(int usuarioId)

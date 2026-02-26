@@ -12,6 +12,7 @@
 @implements IDisposable
 @inject NavigationManager Navigation
 @inject BaseSql BaseSqlService
+@inject EmailService EmailService
 @inject EstadoApp estadoApp
 @inject TemaService Tema
 
@@ -83,6 +84,23 @@
                     <span class="step-label">Nome</span>
                 </div>
                 <div class="step-connector @(etapa > Etapa.Nome ? "connector--done" : "")"></div>
+                @if (primeiroUtilizador)
+                {
+                    <div class="step @(etapa >= Etapa.VerificacaoEmail ? "step--active" : "") @(etapa > Etapa.VerificacaoEmail ? "step--done" : "")">
+                        <div class="step-circle">
+                            @if (etapa > Etapa.VerificacaoEmail)
+                            {
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12" /></svg>
+                            }
+                            else
+                            {
+                                <span>2</span>
+                            }
+                        </div>
+                        <span class="step-label">Email</span>
+                    </div>
+                    <div class="step-connector @(etapa > Etapa.VerificacaoEmail ? "connector--done" : "")"></div>
+                }
                 <div class="step @(etapa >= Etapa.Camera ? "step--active" : "") @(etapa > Etapa.Camera ? "step--done" : "")">
                     <div class="step-circle">
                         @if (etapa > Etapa.Camera)
@@ -91,14 +109,14 @@
                         }
                         else
                         {
-                            <span>2</span>
+                            <span>@(primeiroUtilizador ? "3" : "2")</span>
                         }
                     </div>
                     <span class="step-label">Captura</span>
                 </div>
                 <div class="step-connector @(etapa > Etapa.Camera ? "connector--done" : "")"></div>
                 <div class="step @(etapa >= Etapa.Concluido ? "step--active" : "")">
-                    <div class="step-circle"><span>3</span></div>
+                    <div class="step-circle"><span>@(primeiroUtilizador ? "4" : "3")</span></div>
                     <span class="step-label">Concluído</span>
                 </div>
             </div>
@@ -136,8 +154,30 @@
                         {
                             <p class="field-error">Por favor insira um nome válido.</p>
                         }
-                        <button class="btn-primary btn-full" @onclick="AvancarParaCamera" disabled="@string.IsNullOrWhiteSpace(nomeUsuario)">
-                            Continuar para captura
+                        @if (primeiroUtilizador)
+                        {
+                            <div class="field-wrapper">
+                                <svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                                    <polyline points="22,6 12,13 2,6" />
+                                </svg>
+                                <input type="email"
+                                       @bind="emailUsuario"
+                                       @bind:event="oninput"
+                                       class="field-input @(emailErro ? "field-input--error" : "")"
+                                       placeholder="Ex: joao@email.com"
+                                       maxlength="200" />
+                            </div>
+                            @if (emailErro)
+                            {
+                                <p class="field-error">Por favor insira um email válido.</p>
+                            }
+                        }
+
+                        <button class="btn-primary btn-full"
+                                @onclick="@(primeiroUtilizador? AvancarParaVerificacaoEmail : AvancarParaCamera)"
+                                disabled="@(string.IsNullOrWhiteSpace(nomeUsuario) || (primeiroUtilizador && string.IsNullOrWhiteSpace(emailUsuario)))">
+                            @(primeiroUtilizador ? "Continuar para verificação" : "Continuar para captura")
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
                         </button>
                     </div>
@@ -145,6 +185,87 @@
                     <div class="info-inline">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></svg>
                         O nome será associado permanentemente à biometria registada
+                    </div>
+                </div>
+            }
+
+            @* ETAPA 1.5: VERIFICAÇÃO EMAIL (apenas user master) *@
+            @if (etapa == Etapa.VerificacaoEmail)
+            {
+                <div class="card card--centered animate-in">
+                    <div class="card-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                            <polyline points="22,6 12,13 2,6" />
+                        </svg>
+                    </div>
+                    <h1 class="card-title">Verificação de Email</h1>
+                    <p class="card-sub">
+                        Enviámos um código de 6 dígitos para
+                        <strong>@emailUsuario</strong>.<br />
+                        Introduza o código abaixo para continuar.
+                    </p>
+
+                    <div class="name-form" style="width:100%;">
+                        <!-- Inputs individuais dos 6 dígitos -->
+                        <div class="codigo-inputs">
+                            @for (int i = 0; i < 6; i++)
+                            {
+                                int idx = i;
+                                <input id="cod-@idx"
+                                       type="text"
+                                       inputmode="numeric"
+                                       maxlength="1"
+                                       class="cod-input @(codigoErro ? "cod-input--error" : "")"
+                                       value="@codigoDigitos[idx]"
+                                       @oninput="@(e => OnDigitInput(e, idx))"
+                                       @onkeydown="@(e => OnDigitKeyDown(e, idx))"
+                                       autocomplete="off" />
+                            }
+                        </div>
+
+                        @if (codigoErro)
+                        {
+                            <p class="field-error" style="text-align:center;">Código incorreto. Tente novamente.</p>
+                        }
+                        @if (codigoExpirado)
+                        {
+                            <p class="field-error" style="text-align:center;">O código expirou. Reenvie um novo código.</p>
+                        }
+
+                        <button class="btn-primary btn-full"
+                                @onclick="VerificarCodigo"
+                                disabled="@(codigoDigitos.Any(string.IsNullOrEmpty) || verificandoCodigo)">
+                            @if (verificandoCodigo)
+                            {
+                                <span class="spin-sm" style="border-color:white;border-top-color:transparent;"></span>
+                                <span>A verificar...</span>
+                            }
+                            else
+                            {
+                                <span>Verificar código</span>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
+                            }
+                        </button>
+
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px;">
+                            <button class="btn-ghost-sm" @onclick="VoltarParaNomeDeVerificacao">← Alterar email</button>
+                            <button class="btn-ghost-sm" @onclick="ReenviarCodigo" disabled="@reenvioDesativado">
+                                @if (reenvioDesativado)
+                                {
+                                    <span>Reenviar em @segundosReenvio s</span>
+                                }
+                                else
+                                {
+                                    <span>Reenviar código</span>
+                                }
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="info-inline">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></svg>
+                        O código expira em 10 minutos
                     </div>
                 </div>
             }
@@ -334,6 +455,25 @@
                     </div>
                     <h1 class="card-title">Biometria Registada!</h1>
                     <p class="card-sub">O utilizador <strong>@nomeRegistado</strong> foi adicionado com sucesso ao sistema.</p>
+
+                    @if (primeiroUtilizador)
+                    {
+                        @if (emailEnviado)
+                        {
+                            <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--green);background:var(--green-bg);border:1px solid var(--green-br);border-radius:8px;padding:10px 16px;">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><polyline points="20 6 9 17 4 12" /></svg>
+                                Email de confirmação enviado para <strong style="margin-left:4px;">@emailUsuario</strong>
+                            </div>
+                        }
+                        else if (!string.IsNullOrEmpty(emailErroEnvio))
+                        {
+                            <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--amber);background:var(--amber-bg);border:1px solid var(--amber-br);border-radius:8px;padding:10px 16px;">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="10" /><path d="M12 8v4M12 16h.01" /></svg>
+                                @emailErroEnvio
+                            </div>
+                        }
+                    }
+
                     <p class="redirect-hint">A redirecionar em @contagemRegressiva segundos...</p>
                 </div>
             }
@@ -343,7 +483,7 @@
 </div>
 
 @code {
-    private enum Etapa { Nome, Camera, Concluido }
+    private enum Etapa { Nome, VerificacaoEmail, Camera, Concluido }
     private enum EstadoCaptura { Aguardando, RostoDetectado, Estabilizando, Estavel, Capturando }
 
     private const int FRAMES_PARA_CAPTURAR = 45;
@@ -375,6 +515,21 @@
     private bool salvando = false;
     private bool primeiroUtilizador = false;
     private bool nomeErro = false;
+    private string emailUsuario = "";
+    private bool emailErro = false;
+    private string emailErroEnvio = "";
+    private bool emailEnviado = false;
+
+    // ── Verificação de código ──
+    private string[] codigoDigitos = new string[6];
+    private string _codigoGerado = "";
+    private DateTime _codigoExpiracao;
+    private bool codigoErro = false;
+    private bool codigoExpirado = false;
+    private bool verificandoCodigo = false;
+    private bool reenvioDesativado = false;
+    private int segundosReenvio = 60;
+    private CancellationTokenSource? _ctsReenvio;
     private int contagemRegressiva = 3;
 
     protected override void OnInitialized()
@@ -409,6 +564,14 @@
         if (e.Key == "Enter") await AvancarParaCamera();
     }
 
+    private static bool EmailValido(string email)
+    {
+        if (string.IsNullOrWhiteSpace(email)) return false;
+        try { var addr = new System.Net.Mail.MailAddress(email); return addr.Address == email.Trim(); }
+        catch { return false; }
+    }
+
+    // Chamado apenas para utilizadores NÃO master (vai direto à câmera)
     private async Task AvancarParaCamera()
     {
         if (string.IsNullOrWhiteSpace(nomeUsuario))
@@ -420,8 +583,143 @@
         nomeUsuario = nomeUsuario.Trim();
         etapa = Etapa.Camera;
         StateHasChanged();
-        await Task.Delay(50); // permite render antes de iniciar câmera
+        await Task.Delay(50);
         await IniciarCamera();
+    }
+
+    // Chamado pelo user master — valida email e avança para verificação
+    private async Task AvancarParaVerificacaoEmail()
+    {
+        if (string.IsNullOrWhiteSpace(nomeUsuario)) { nomeErro = true; return; }
+        nomeErro = false;
+
+        if (!EmailValido(emailUsuario.Trim())) { emailErro = true; return; }
+        emailErro = false;
+
+        nomeUsuario = nomeUsuario.Trim();
+
+        // Enviar código e avançar para a etapa de verificação
+        await EnviarNovoCodigoAsync();
+        etapa = Etapa.VerificacaoEmail;
+        StateHasChanged();
+    }
+
+    private async Task EnviarNovoCodigoAsync()
+    {
+        try
+        {
+            codigoDigitos = new string[6];
+            codigoErro = false;
+            codigoExpirado = false;
+            _codigoGerado = await EmailService.EnviarCodigoVerificacaoAsync(emailUsuario.Trim(), nomeUsuario.Trim());
+            _codigoExpiracao = DateTime.UtcNow.AddMinutes(10);
+        }
+        catch (Exception ex)
+        {
+            erro = true;
+            mensagemFeedback = $"Não foi possível enviar o email: {ex.Message}";
+        }
+    }
+
+    private async Task VerificarCodigo()
+    {
+        string codigoIntroduzido = string.Concat(codigoDigitos);
+
+        if (DateTime.UtcNow > _codigoExpiracao)
+        {
+            codigoExpirado = true;
+            codigoErro = false;
+            return;
+        }
+
+        if (codigoIntroduzido != _codigoGerado)
+        {
+            codigoErro = true;
+            codigoDigitos = new string[6];
+            StateHasChanged();
+            return;
+        }
+
+        // Código correto — marcar email como confirmado e avançar para câmera
+        codigoErro = false;
+        verificandoCodigo = true;
+        StateHasChanged();
+
+        await Task.Delay(400); // feedback visual breve
+        _ctsReenvio?.Cancel();
+        etapa = Etapa.Camera;
+        verificandoCodigo = false;
+        StateHasChanged();
+        await Task.Delay(50);
+        await IniciarCamera();
+    }
+
+    private void OnDigitInput(ChangeEventArgs e, int index)
+    {
+        string? val = e.Value?.ToString();
+        if (string.IsNullOrEmpty(val)) { codigoDigitos[index] = ""; return; }
+
+        // Aceita paste de 6 dígitos de uma vez
+        string digits = new string(val.Where(char.IsDigit).ToArray());
+        if (digits.Length == 6)
+        {
+            for (int i = 0; i < 6; i++) codigoDigitos[i] = digits[i].ToString();
+            StateHasChanged();
+            return;
+        }
+
+        codigoDigitos[index] = digits.Length > 0 ? digits[^1].ToString() : "";
+        codigoErro = false;
+        StateHasChanged();
+    }
+
+    private void OnDigitKeyDown(KeyboardEventArgs e, int index)
+    {
+        if (e.Key == "Backspace" && string.IsNullOrEmpty(codigoDigitos[index]) && index > 0)
+        {
+            codigoDigitos[index - 1] = "";
+            StateHasChanged();
+        }
+    }
+
+    private void VoltarParaNomeDeVerificacao()
+    {
+        _ctsReenvio?.Cancel();
+        etapa = Etapa.Nome;
+        codigoDigitos = new string[6];
+        codigoErro = false;
+        codigoExpirado = false;
+        reenvioDesativado = false;
+        StateHasChanged();
+    }
+
+    private async Task ReenviarCodigo()
+    {
+        _ctsReenvio?.Cancel();
+        await EnviarNovoCodigoAsync();
+
+        // Cooldown de 60 segundos para reenvio
+        reenvioDesativado = true;
+        segundosReenvio = 60;
+        StateHasChanged();
+
+        _ctsReenvio = new CancellationTokenSource();
+        var token = _ctsReenvio.Token;
+        _ = Task.Run(async () =>
+        {
+            while (segundosReenvio > 0 && !token.IsCancellationRequested)
+            {
+                await Task.Delay(1000, token).ContinueWith(_ => { });
+                if (token.IsCancellationRequested) break;
+                segundosReenvio--;
+                await InvokeAsync(StateHasChanged);
+            }
+            if (!token.IsCancellationRequested)
+            {
+                reenvioDesativado = false;
+                await InvokeAsync(StateHasChanged);
+            }
+        }, token);
     }
 
     private void VoltarParaNome()
@@ -696,6 +994,10 @@
                 {
                     int uid = baseSql.ObterUsuarioIdPorNome(nomeParaSalvar);
                     if (uid == 0) uid = baseSql.CriarUsuario(nomeParaSalvar);
+
+                    // Se é o user master, guardar email
+                    if (primeiroUtilizador && !string.IsNullOrWhiteSpace(emailUsuario))
+                        baseSql.AtualizarEmail(uid, emailUsuario.Trim(), true); // email já verificado
                     foreach (var img in variacoes)
                     {
                         using VectorOfByte vb = new();
@@ -707,6 +1009,20 @@
 
                 nomeRegistado = nomeParaSalvar;
                 PararCamera();
+
+                // Enviar email de confirmação ao user master
+                if (primeiroUtilizador && !string.IsNullOrWhiteSpace(emailUsuario))
+                {
+                    try
+                    {
+                        await EmailService.EnviarConfirmacaoUserMasterAsync(emailUsuario.Trim(), nomeParaSalvar);
+                        emailEnviado = true;
+                    }
+                    catch (Exception exEmail)
+                    {
+                        emailErroEnvio = $"Email de confirmação não enviado: {exEmail.Message}";
+                    }
+                }
 
                 await InvokeAsync(async () =>
                 {
@@ -942,6 +1258,8 @@
 
     public void Dispose()
     {
+        _ctsReenvio?.Cancel();
+        _ctsReenvio?.Dispose();
         PararCamera();
         faceDetector?.Dispose();
     }
@@ -958,8 +1276,8 @@
     }
 
     /* ══════════════════════════════════════════
-           MODO CLARO (padrão)
-        ══════════════════════════════════════════ */
+               MODO CLARO (padrão)
+            ══════════════════════════════════════════ */
     :root {
         --bg: #f0f2f5;
         --bg2: #f8f9fb;
@@ -988,8 +1306,8 @@
     }
 
     /* ══════════════════════════════════════════
-           MODO ESCURO — sobrescreve as variáveis
-        ══════════════════════════════════════════ */
+               MODO ESCURO — sobrescreve as variáveis
+            ══════════════════════════════════════════ */
     .dark {
         --bg: #08090c;
         --bg2: #0e1016;
@@ -1099,8 +1417,8 @@
         }
 
     /* ══════════════════════════════════════════
-           ESTILOS COMUNS (usam variáveis, funcionam em ambos os modos)
-        ══════════════════════════════════════════ */
+               ESTILOS COMUNS (usam variáveis, funcionam em ambos os modos)
+            ══════════════════════════════════════════ */
 
     /* Toggle button */
     .btn-tema {
@@ -2102,6 +2420,41 @@
         .form-side {
             order: 2;
         }
+    }
+
+    /* ── CÓDIGO DE VERIFICAÇÃO ── */
+    .codigo-inputs {
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+        margin-bottom: 4px;
+    }
+
+    .cod-input {
+        width: 48px;
+        height: 56px;
+        text-align: center;
+        font-size: 24px;
+        font-weight: 700;
+        font-family: 'DM Sans', monospace;
+        background: var(--bg);
+        border: 2px solid var(--border);
+        border-radius: 10px;
+        color: var(--text);
+        outline: none;
+        transition: border-color 0.15s, box-shadow 0.15s;
+        caret-color: transparent;
+    }
+
+        .cod-input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+            background: var(--surface);
+        }
+
+    .cod-input--error {
+        border-color: var(--red) !important;
+        box-shadow: 0 0 0 3px rgba(220,38,38,0.1) !important;
     }
 
     @@media (max-width: 600px) {
