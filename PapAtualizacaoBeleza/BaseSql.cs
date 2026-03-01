@@ -668,6 +668,38 @@ namespace PapAtualizacaoBeleza
             return (null, false);
         }
 
+
+        // Remove todos os utilizadores e biometrias, mantendo apenas o user master
+        public void ResetarSistema(string nomeMaster)
+        {
+            // cria um banco novo — o sistema vai usá-lo automaticamente na próxima sessão
+            CriarBancoDinamico();
+            RegistrarLog("Sistema", "Reset Total", $"Sistema resetado por {nomeMaster}. Novo banco criado.");
+        }
+
+        // Transfere o título AdminSupremo para outro utilizador e rebaixa o master atual para Admin
+        public void TransferirAdminMaster(int idMasterAtual, int idNovoMaster)
+        {
+            using SqlConnection cx = new(_connectionStringAtual);
+            cx.Open();
+
+            using (SqlCommand cmd = new("UPDATE Usuarios SET NivelPermissao = @P WHERE UsuarioId = @Id", cx))
+            {
+                cmd.Parameters.AddWithValue("@P", (int)NivelPermissao.AdminComum);
+                cmd.Parameters.AddWithValue("@Id", idMasterAtual);
+                cmd.ExecuteNonQuery();
+            }
+
+            using (SqlCommand cmd = new("UPDATE Usuarios SET NivelPermissao = @P WHERE UsuarioId = @Id", cx))
+            {
+                cmd.Parameters.AddWithValue("@P", (int)NivelPermissao.AdminSupremo);
+                cmd.Parameters.AddWithValue("@Id", idNovoMaster);
+                cmd.ExecuteNonQuery();
+            }
+
+            RegistrarLog("Sistema", "Transferência Master", $"Master transferido de ID {idMasterAtual} para ID {idNovoMaster}.");
+        }
+
         public void RemoverUsuario(int usuarioId)
         {
             using (SqlConnection conexaoAtual = new(_connectionStringAtual))

@@ -108,6 +108,22 @@
             }
         </button>
 
+        @if (IsMaster())
+        {
+            <div class="nav-divider"></div>
+            <button class="nav-item nav-item--danger @(abaAtiva == "dangerzone" ? "nav-item--danger-active" : "")"
+                    @onclick="@(() => MudarAba("dangerzone"))">
+                <div class="nav-icon-wrap">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="18" height="18">
+                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                        <line x1="12" y1="9" x2="12" y2="13" />
+                        <line x1="12" y1="17" x2="12.01" y2="17" />
+                    </svg>
+                </div>
+                <span class="nav-label">Zona Restrita</span>
+            </button>
+        }
+
     </nav>
 
     @* ══════════════════════════════════════════
@@ -585,6 +601,105 @@
             </div>
         </div>
 
+        @* ══ VIEW — ZONA RESTRITA (apenas master) ══ *@
+        <div class="view @(abaAtiva == "dangerzone" ? "view--visible" : "view--hidden")">
+
+            <div class="section-header">
+                <div>
+                    <h1 class="section-title danger-title-main">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20" style="vertical-align:-3px;margin-right:6px;">
+                            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                            <line x1="12" y1="9" x2="12" y2="13" />
+                            <line x1="12" y1="17" x2="12.01" y2="17" />
+                        </svg>
+                        Zona Restrita
+                    </h1>
+                    <p class="section-sub">Ações irreversíveis exclusivas do Administrador Master.</p>
+                </div>
+            </div>
+
+            @* Alerta de aviso no topo *@
+            <div class="danger-warning-banner">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="flex-shrink:0;">
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="8" x2="12" y2="12" />
+                    <line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
+                <span>As ações desta secção são permanentes e não podem ser desfeitas. Proceda com cautela.</span>
+            </div>
+
+            @* ── Ação 1: Reset total ── *@
+            <div class="danger-card">
+                <div class="danger-card-left">
+                    <div class="danger-card-icon danger-card-icon--red">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="20" height="20">
+                            <polyline points="3 6 5 6 21 6" />
+                            <path d="M19 6l-1 14H6L5 6" />
+                            <path d="M9 6V4h6v2" />
+                        </svg>
+                    </div>
+                    <div>
+                        <p class="danger-card-title">Resetar Sistema</p>
+                        <p class="danger-card-sub">
+                            Remove todos os utilizadores e biometrias registadas, exceto a sua própria conta master.
+                            O sistema voltará ao estado inicial.
+                        </p>
+                    </div>
+                </div>
+                @if (confirmarReset)
+                {
+                    <div class="danger-confirm-group">
+                        <span class="danger-confirm-label">Tem a certeza absoluta?</span>
+                        <button class="btn-danger-action" @onclick="ExecutarReset" disabled="@executandoAcao">
+                            @if (executandoAcao && acaoAtiva == "reset")
+                            {
+                                <span class="btn-spinner-sm"></span>
+                                <span>A resetar...</span>
+                            }
+                            else
+                            {
+                                <span>Sim, resetar tudo</span>
+                            }
+                        </button>
+                        <button class="btn-danger-cancel" @onclick="@(() => confirmarReset = false)">Cancelar</button>
+                    </div>
+                }
+                else
+                {
+                    <button class="btn-danger-outline" @onclick="@(() => confirmarReset = true)" disabled="@executandoAcao">
+                        Resetar sistema
+                    </button>
+                }
+            </div>
+
+            @* ── Ação 2: Transferir Master ── *@
+            <div class="danger-card">
+                <div class="danger-card-left">
+                    <div class="danger-card-icon danger-card-icon--amber">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="20" height="20">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                            <circle cx="9" cy="7" r="4" />
+                            <polyline points="23 11 17 11" />
+                            <polyline points="20 8 23 11 20 14" />
+                        </svg>
+                    </div>
+                    <div>
+                        <p class="danger-card-title">Transferir Admin Master</p>
+                        <p class="danger-card-sub">
+                            Transfere o nível Master para outro utilizador. Você ficará como Admin comum
+                            e perderá o acesso a esta secção.
+                        </p>
+                    </div>
+                </div>
+                <button class="btn-danger-outline btn-danger-outline--amber"
+                        @onclick="AbrirModalTransferencia"
+                        disabled="@executandoAcao">
+                    Escolher utilizador
+                </button>
+            </div>
+
+        </div>
+
     </main>
 </div>
 
@@ -681,6 +796,143 @@
             <div class="modal-footer">
                 <button class="btn-cancel" @onclick="FecharModalExclusao">Cancelar</button>
                 <button class="btn-danger" @onclick="ConfirmarExclusaoDefinitiva">Sim, excluir</button>
+            </div>
+
+        </div>
+    </div>
+}
+
+@* ══════════════════════════════════════════
+   MODAL — ESCOLHER NOVO MASTER
+══════════════════════════════════════════ *@
+@if (modalTransferenciaVisivel)
+{
+    <div class="modal-overlay" @onclick="FecharModalTransferencia">
+        <div class="modal-transfer" @onclick:stopPropagation="true">
+
+            @* Cabeçalho *@
+            <div class="modal-header">
+                <div class="modal-title-group">
+                    <div class="modal-icon modal-icon--amber">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="18" height="18">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                            <circle cx="9" cy="7" r="4" />
+                            <polyline points="23 11 17 11" />
+                            <polyline points="20 8 23 11 20 14" />
+                        </svg>
+                    </div>
+                    <div>
+                        <h3>Escolher Novo Master</h3>
+                        <p>Selecione o utilizador que receberá o nível AdminSupremo</p>
+                    </div>
+                </div>
+                <button class="close-btn" @onclick="FecharModalTransferencia">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                </button>
+            </div>
+
+            @* Pesquisa *@
+            <div class="mt-search-bar">
+                <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8" />
+                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+                <input type="text"
+                       placeholder="Pesquisar utilizador..."
+                       @bind="termoPesquisaTransferencia"
+                       @bind:event="oninput" />
+                @if (!string.IsNullOrEmpty(termoPesquisaTransferencia))
+                {
+                    <button class="search-clear" @onclick="@(() => termoPesquisaTransferencia = "")">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="12" height="12">
+                            <line x1="18" y1="6" x2="6" y2="18" />
+                            <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                    </button>
+                }
+            </div>
+
+            @* Lista de utilizadores *@
+            <div class="mt-list">
+                @{
+                    var candidatos = UtilizadoresFiltradosTransferencia();
+                }
+                @if (!candidatos.Any())
+                {
+                    <div class="mt-empty">Nenhum utilizador encontrado.</div>
+                }
+                else
+                {
+                    @foreach (var u in candidatos)
+                    {
+                        bool selecionado = idNovoMasterSelecionado == u.Id;
+                        <div class="mt-row @(selecionado ? "mt-row--selected" : "")">
+                            <div class="mt-row-left">
+                                <div class="u-avatar @(u.Permissao == NivelPermissao.AdminComum ? "u-avatar--admin" : "")">
+                                    @u.Nome[0].ToString().ToUpper()
+                                </div>
+                                <div>
+                                    <span class="u-name">@u.Nome</span>
+                                    <span class="perm-badge @ObterClassePermissao(u.Permissao)" style="margin-top:3px;">@u.Permissao</span>
+                                </div>
+                            </div>
+                            <div class="mt-row-right">
+                                <span class="td-mono">ID #@u.Id.ToString("D4")</span>
+                                @if (selecionado)
+                                {
+                                    // utilizador já selecionado — mostra tick e botão de confirmar
+                                    <span class="mt-selected-badge">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="12" height="12">
+                                            <polyline points="20 6 9 17 4 12" />
+                                        </svg>
+                                        Selecionado
+                                    </span>
+                                }
+                                else
+                                {
+                                    <button class="btn-mt-escolher" @onclick="@(() => idNovoMasterSelecionado = u.Id)">
+                                        Escolher
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                    }
+                }
+            </div>
+
+            @* Rodapé com confirmação final *@
+            <div class="mt-footer">
+                @if (idNovoMasterSelecionado != 0)
+                {
+                    var escolhido = listaUsuarios?.FirstOrDefault(u => u.Id == idNovoMasterSelecionado);
+                    <div class="mt-footer-info">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="flex-shrink:0;color:var(--amber);">
+                            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                            <line x1="12" y1="9" x2="12" y2="13" />
+                            <line x1="12" y1="17" x2="12.01" y2="17" />
+                        </svg>
+                        <span>Transferir Master para <strong>@escolhido?.Nome</strong>? Esta ação não pode ser desfeita.</span>
+                    </div>
+                }
+                <div class="mt-footer-btns">
+                    <button class="btn-cancel" @onclick="FecharModalTransferencia">Cancelar</button>
+                    <button class="btn-danger-action btn-danger-action--amber"
+                            @onclick="ExecutarTransferencia"
+                            disabled="@(idNovoMasterSelecionado == 0 || executandoAcao)">
+                        @if (executandoAcao && acaoAtiva == "transferencia")
+                        {
+                            <span class="btn-spinner-sm"></span>
+                            <span>A transferir...</span>
+                        }
+                        else
+                        {
+                            <span>Confirmar transferência</span>
+                        }
+                    </button>
+                </div>
             </div>
 
         </div>
@@ -915,6 +1167,102 @@
         u != null &&
         (u.Nome.Trim().ToLower() == "guilherme" ||
          u.Permissao.ToString() == "AdminSupremo");
+
+    // verifica se o utilizador atual é o master
+    private bool IsMaster() =>
+        Estado.UsuarioAtual?.Permissao == NivelPermissao.AdminSupremo;
+
+    // estado da zona restrita
+    private bool confirmarReset = false;
+    private bool executandoAcao = false;
+    private string acaoAtiva = "";
+    private int idNovoMasterSelecionado = 0;
+
+    // estado do modal de transferência
+    private bool modalTransferenciaVisivel = false;
+    private string termoPesquisaTransferencia = "";
+
+    private void AbrirModalTransferencia()
+    {
+        idNovoMasterSelecionado = 0;
+        termoPesquisaTransferencia = "";
+        modalTransferenciaVisivel = true;
+    }
+
+    private void FecharModalTransferencia()
+    {
+        modalTransferenciaVisivel = false;
+        idNovoMasterSelecionado = 0;
+        termoPesquisaTransferencia = "";
+    }
+
+    // utilizadores elegíveis, filtrados pela pesquisa do modal
+    private List<Usuario> UtilizadoresFiltradosTransferencia()
+    {
+        if (listaUsuarios == null) return new List<Usuario>();
+        return listaUsuarios
+            .Where(u => u.Id != Estado.UsuarioAtual?.Id)
+            .Where(u => string.IsNullOrEmpty(termoPesquisaTransferencia) ||
+                        u.Nome.Contains(termoPesquisaTransferencia, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+    }
+
+    private async Task ExecutarReset()
+    {
+        if (executandoAcao) return;
+        executandoAcao = true;
+        acaoAtiva = "reset";
+        StateHasChanged();
+
+        await Task.Run(() =>
+        {
+            // cria um banco novo — o antigo fica intocado mas deixa de ser usado
+            BancoService.ResetarSistema(Estado.UsuarioAtual?.Nome ?? "Master");
+        });
+
+        confirmarReset = false;
+        executandoAcao = false;
+        acaoAtiva = "";
+
+        // redireciona para o login — a sessão atual apontava para o banco antigo
+        Estado.Logout();
+        Estado.EstadoCofreAtual = EstadoCofre.Fechado;
+        Navigation.NavigateTo("/", replace: true);
+    }
+
+    private async Task ExecutarTransferencia()
+    {
+        if (executandoAcao || idNovoMasterSelecionado == 0) return;
+        executandoAcao = true;
+        acaoAtiva = "transferencia";
+        StateHasChanged();
+
+        int idAtual = Estado.UsuarioAtual!.Id;
+        int idNovo = idNovoMasterSelecionado;
+        string nomeNovo = listaUsuarios?.FirstOrDefault(u => u.Id == idNovo)?.Nome ?? "?";
+
+        await Task.Run(() =>
+        {
+            BancoService.TransferirAdminMaster(idAtual, idNovo);
+            BancoService.RegistrarLog(
+                Estado.UsuarioAtual.Nome ?? "Master",
+                "Transferência Master",
+                $"Nível Master transferido para {nomeNovo} (ID {idNovo}).");
+        });
+
+        // atualiza a permissão na sessão atual — o user deixa de ser master
+        if (Estado.UsuarioAtual != null)
+            Estado.UsuarioAtual.Permissao = NivelPermissao.AdminComum;
+
+        modalTransferenciaVisivel = false;
+        idNovoMasterSelecionado = 0;
+        termoPesquisaTransferencia = "";
+        executandoAcao = false;
+        acaoAtiva = "";
+
+        // redireciona para o painel normal — já não tem acesso à zona restrita
+        Navigation.NavigateTo("/UserLogado", replace: true);
+    }
 }
 
 <style>
@@ -927,8 +1275,8 @@
     }
 
     /* ══════════════════════════════════════════
-           MODO CLARO (padrão)
-        ══════════════════════════════════════════ */
+               MODO CLARO (padrão)
+            ══════════════════════════════════════════ */
     :root {
         --bg: #f0f2f5;
         --bg2: #f8f9fb;
@@ -982,8 +1330,8 @@
     }
 
     /* ══════════════════════════════════════════
-           MODO ESCURO
-        ══════════════════════════════════════════ */
+               MODO ESCURO
+            ══════════════════════════════════════════ */
     .dark {
         --bg: #08090c;
         --bg2: #0e1016;
@@ -1146,8 +1494,8 @@
         }
 
     /* ══════════════════════════════════════════
-           ESTILOS COMUNS
-        ══════════════════════════════════════════ */
+               ESTILOS COMUNS
+            ══════════════════════════════════════════ */
 
     .btn-tema {
         background: none;
@@ -2395,5 +2743,444 @@
         .modal-box {
             width: calc(100vw - 32px);
         }
+    }
+
+    /* ── ZONA RESTRITA ── */
+
+    .nav-item--danger {
+        color: var(--red) !important;
+        opacity: 0.75;
+    }
+
+        .nav-item--danger:hover {
+            background: var(--red-bg) !important;
+            opacity: 1;
+        }
+
+    .nav-item--danger-active {
+        background: var(--red) !important;
+        color: white !important;
+        opacity: 1 !important;
+        box-shadow: 0 4px 16px rgba(220,38,38,0.25) !important;
+    }
+
+        .nav-item--danger-active .nav-icon-wrap {
+            background: rgba(255,255,255,0.18) !important;
+        }
+
+    .dark .nav-item--danger {
+        color: var(--red) !important;
+    }
+
+        .dark .nav-item--danger:hover {
+            background: var(--red-bg) !important;
+        }
+
+    .dark .nav-item--danger-active {
+        box-shadow: 0 4px 16px rgba(248,113,113,0.3) !important;
+    }
+
+    .danger-title-main {
+        color: var(--red);
+    }
+
+    .danger-warning-banner {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 13px 16px;
+        background: var(--amber-bg);
+        border: 1px solid var(--amber-br);
+        border-radius: 9px;
+        font-size: 13px;
+        color: var(--amber);
+        margin-bottom: 20px;
+        line-height: 1.5;
+    }
+
+    .danger-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        padding: 22px 24px;
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 24px;
+        margin-bottom: 14px;
+        transition: border-color 0.2s;
+    }
+
+        .danger-card:hover {
+            border-color: var(--red-br);
+        }
+
+    .danger-card-left {
+        display: flex;
+        align-items: flex-start;
+        gap: 16px;
+        flex: 1;
+        min-width: 0;
+    }
+
+    .danger-card-icon {
+        width: 42px;
+        height: 42px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        margin-top: 1px;
+    }
+
+    .danger-card-icon--red {
+        background: var(--red-bg);
+        border: 1px solid var(--red-br);
+        color: var(--red);
+    }
+
+    .danger-card-icon--amber {
+        background: var(--amber-bg);
+        border: 1px solid var(--amber-br);
+        color: var(--amber);
+    }
+
+    .danger-card-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text);
+        margin-bottom: 5px;
+    }
+
+    .danger-card-sub {
+        font-size: 13px;
+        color: var(--muted);
+        line-height: 1.6;
+        max-width: 500px;
+    }
+
+    /* botão de ação primário (vermelho) */
+    .btn-danger-outline {
+        padding: 9px 18px;
+        border: 1px solid var(--red-br);
+        border-radius: 8px;
+        background: var(--red-bg);
+        color: var(--red);
+        font-size: 13px;
+        font-weight: 600;
+        font-family: 'DM Sans', sans-serif;
+        cursor: pointer;
+        white-space: nowrap;
+        flex-shrink: 0;
+        transition: all 0.15s;
+    }
+
+        .btn-danger-outline:hover:not(:disabled) {
+            background: var(--red);
+            color: white;
+            border-color: var(--red);
+        }
+
+        .btn-danger-outline:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+    /* variante âmbar para a transferência */
+    .btn-danger-outline--amber {
+        border-color: var(--amber-br);
+        background: var(--amber-bg);
+        color: var(--amber);
+    }
+
+        .btn-danger-outline--amber:hover:not(:disabled) {
+            background: var(--amber);
+            color: white;
+            border-color: var(--amber);
+        }
+
+    /* grupo de confirmação inline */
+    .danger-confirm-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+
+    .danger-confirm-label {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--red);
+        white-space: nowrap;
+    }
+
+    .danger-select {
+        padding: 8px 12px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--bg);
+        color: var(--text);
+        font-size: 13px;
+        font-family: 'DM Sans', sans-serif;
+        outline: none;
+        min-width: 200px;
+        transition: border-color 0.15s;
+    }
+
+        .danger-select:focus {
+            border-color: var(--amber);
+        }
+
+    /* botão de confirmação final (sólido) */
+    .btn-danger-action {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 16px;
+        border: none;
+        border-radius: 8px;
+        background: var(--red);
+        color: white;
+        font-size: 13px;
+        font-weight: 600;
+        font-family: 'DM Sans', sans-serif;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: all 0.15s;
+    }
+
+        .btn-danger-action:hover:not(:disabled) {
+            background: #b91c1c;
+        }
+
+        .btn-danger-action:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+    .btn-danger-action--amber {
+        background: var(--amber);
+    }
+
+        .btn-danger-action--amber:hover:not(:disabled) {
+            background: #b45309;
+        }
+
+    /* botão cancelar inline */
+    .btn-danger-cancel {
+        padding: 8px 14px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: transparent;
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 500;
+        font-family: 'DM Sans', sans-serif;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: all 0.15s;
+    }
+
+        .btn-danger-cancel:hover {
+            border-color: var(--text);
+            color: var(--text);
+        }
+
+    /* spinner pequeno para dentro dos botões */
+    .btn-spinner-sm {
+        width: 13px;
+        height: 13px;
+        border: 2px solid rgba(255,255,255,0.3);
+        border-top-color: white;
+        border-radius: 50%;
+        animation: spin 0.7s linear infinite;
+        flex-shrink: 0;
+    }
+
+    /* ── MODAL DE TRANSFERÊNCIA ── */
+
+    .modal-transfer {
+        background: var(--surface);
+        border-radius: var(--radius);
+        width: 540px;
+        max-width: calc(100vw - 32px);
+        max-height: 80vh;
+        display: flex;
+        flex-direction: column;
+        border: 1px solid var(--border);
+        box-shadow: 0 24px 80px rgba(0,0,0,0.18);
+        animation: scaleIn 0.2s;
+        overflow: hidden;
+    }
+
+    .modal-icon--amber {
+        background: var(--amber-bg);
+        border: 1px solid var(--amber-br);
+        color: var(--amber);
+    }
+
+    /* barra de pesquisa interna do modal */
+    .mt-search-bar {
+        position: relative;
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--border);
+        background: var(--bg);
+    }
+
+        .mt-search-bar .search-icon {
+            left: 28px;
+        }
+
+        .mt-search-bar input {
+            width: 100%;
+            padding: 8px 32px 8px 34px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 13px;
+            font-family: 'DM Sans', sans-serif;
+            color: var(--text);
+            background: var(--surface);
+            outline: none;
+            transition: border-color 0.15s;
+        }
+
+            .mt-search-bar input:focus {
+                border-color: var(--amber);
+            }
+
+        .mt-search-bar .search-clear {
+            right: 24px;
+        }
+
+    /* lista de utilizadores scrollável */
+    .mt-list {
+        flex: 1;
+        overflow-y: auto;
+        padding: 8px 0;
+    }
+
+    .mt-empty {
+        text-align: center;
+        padding: 40px;
+        color: var(--dim);
+        font-size: 13px;
+    }
+
+    /* linha de utilizador */
+    .mt-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 11px 20px;
+        gap: 16px;
+        transition: background 0.12s;
+        border-left: 3px solid transparent;
+    }
+
+        .mt-row:hover {
+            background: var(--bg);
+        }
+
+    .mt-row--selected {
+        background: var(--amber-bg) !important;
+        border-left-color: var(--amber) !important;
+    }
+
+    .mt-row-left {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex: 1;
+        min-width: 0;
+    }
+
+    .mt-row-right {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-shrink: 0;
+    }
+
+    /* avatar variante admin */
+    .u-avatar--admin {
+        background: var(--blue-bg);
+        color: var(--perm-admin-col);
+        border: 1px solid var(--blue-br);
+    }
+
+    /* badge de selecionado */
+    .mt-selected-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 4px 10px;
+        background: var(--amber-bg);
+        color: var(--amber);
+        border: 1px solid var(--amber-br);
+        border-radius: 99px;
+        font-size: 11px;
+        font-weight: 600;
+    }
+
+    /* botão escolher por linha */
+    .btn-mt-escolher {
+        padding: 5px 14px;
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        background: var(--bg);
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 600;
+        font-family: 'DM Sans', sans-serif;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: all 0.15s;
+    }
+
+        .btn-mt-escolher:hover {
+            border-color: var(--amber);
+            color: var(--amber);
+            background: var(--amber-bg);
+        }
+
+    /* rodapé do modal */
+    .mt-footer {
+        padding: 14px 20px;
+        border-top: 1px solid var(--border);
+        background: var(--surface);
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .mt-footer-info {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        font-size: 12px;
+        color: var(--muted);
+        line-height: 1.5;
+        padding: 10px 12px;
+        background: var(--amber-bg);
+        border: 1px solid var(--amber-br);
+        border-radius: 8px;
+    }
+
+    .mt-footer-btns {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+    }
+
+    .dark .modal-transfer {
+        box-shadow: 0 24px 80px rgba(0,0,0,0.7);
+    }
+
+    .dark .mt-row--selected {
+        background: rgba(251,191,36,0.07) !important;
     }
 </style>

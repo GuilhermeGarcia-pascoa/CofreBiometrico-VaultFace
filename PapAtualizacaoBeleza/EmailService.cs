@@ -21,15 +21,9 @@ namespace PapAtualizacaoBeleza
             _remetente = config["Email:Remetente"] ?? _smtpUser;
             _nomeRemetente = config["Email:NomeRemetente"] ?? "VaultFace";
         }
-
-        // ─────────────────────────────────────────────────────────────────────
         // API pública
-        // ─────────────────────────────────────────────────────────────────────
-
-        /// <summary>
-        /// Gera e envia um código de verificação de 6 dígitos.
-        /// Devolve o código para ser comparado na UI.
-        /// </summary>
+        // Gera e envia um código de verificação de 6 dígitos.
+        // Devolve o código para ser comparado na UI.
         public async Task<string> EnviarCodigoVerificacaoAsync(string emailDestino, string nomeUtilizador)
         {
             string codigo = GerarCodigo6Digitos();
@@ -42,9 +36,7 @@ namespace PapAtualizacaoBeleza
             return codigo;
         }
 
-        /// <summary>
-        /// Envia o email de boas-vindas após registo completo.
-        /// </summary>
+        // Envia o email de boas-vindas após registo completo.
         public async Task EnviarConfirmacaoUserMasterAsync(string emailDestino, string nomeUtilizador)
         {
             await EnviarEmailAsync(
@@ -55,9 +47,7 @@ namespace PapAtualizacaoBeleza
             );
         }
 
-        // ─────────────────────────────────────────────────────────────────────
         // Envio SMTP
-        // ─────────────────────────────────────────────────────────────────────
 
         private async Task EnviarEmailAsync(string emailDestino, string nomeDestinatario,
                                             string assunto, string corpo)
@@ -80,10 +70,7 @@ namespace PapAtualizacaoBeleza
             await smtp.SendMailAsync(msg);
         }
 
-        // ─────────────────────────────────────────────────────────────────────
         // Geração do código
-        // ─────────────────────────────────────────────────────────────────────
-
         private static string GerarCodigo6Digitos()
         {
             using var rng = System.Security.Cryptography.RandomNumberGenerator.Create();
@@ -93,11 +80,6 @@ namespace PapAtualizacaoBeleza
             return val.ToString("D6");
         }
 
-        // ─────────────────────────────────────────────────────────────────────
-        // Templates HTML — estilos 100% inline (sem bloco <style>)
-        // ─────────────────────────────────────────────────────────────────────
-
-        // Estilos reutilizáveis como constantes para evitar repetição
         private const string FontFamily = "font-family:'Segoe UI',Helvetica,Arial,sans-serif;";
         private const string CardShadow = "box-shadow:0 1px 4px rgba(0,0,0,0.08),0 4px 24px rgba(0,0,0,0.06);";
         private const string BorderColor = "#e2e8f0";
