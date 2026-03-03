@@ -15,6 +15,7 @@
 @inject EmailService EmailService
 @inject EstadoApp estadoApp
 @inject TemaService Tema
+@inject IJSRuntime JS
 
 <PageTitle>Cadastro Biométrico — VaultFace</PageTitle>
 
@@ -218,8 +219,8 @@
                                        maxlength="1"
                                        class="cod-input @(codigoErro ? "cod-input--error" : "")"
                                        value="@codigoDigitos[idx]"
-                                       @oninput="@(e => OnDigitInput(e, idx))"
-                                       @onkeydown="@(e => OnDigitKeyDown(e, idx))"
+                                       @oninput="@(async e => await OnDigitInput(e, idx))"
+                                       @onkeydown="@(async e => await OnDigitKeyDown(e, idx))"
                                        autocomplete="off" />
                             }
                         </div>
@@ -654,10 +655,10 @@
         await IniciarCamera();
     }
 
-    private void OnDigitInput(ChangeEventArgs e, int index)
+    private async Task OnDigitInput(ChangeEventArgs e, int index)
     {
         string? val = e.Value?.ToString();
-        if (string.IsNullOrEmpty(val)) { codigoDigitos[index] = ""; return; }
+        if (string.IsNullOrEmpty(val)) { codigoDigitos[index] = ""; StateHasChanged(); return; }
 
         // Aceita paste de 6 dígitos de uma vez
         string digits = new string(val.Where(char.IsDigit).ToArray());
@@ -665,20 +666,28 @@
         {
             for (int i = 0; i < 6; i++) codigoDigitos[i] = digits[i].ToString();
             StateHasChanged();
+            // foca o último campo após paste completo
+            await JS.InvokeVoidAsync("focusElement", "cod-5");
             return;
         }
 
         codigoDigitos[index] = digits.Length > 0 ? digits[^1].ToString() : "";
         codigoErro = false;
         StateHasChanged();
+
+        // auto-avança para o campo seguinte ao preencher
+        if (codigoDigitos[index].Length == 1 && index < 5)
+            await JS.InvokeVoidAsync("focusElement", $"cod-{index + 1}");
     }
 
-    private void OnDigitKeyDown(KeyboardEventArgs e, int index)
+    private async Task OnDigitKeyDown(KeyboardEventArgs e, int index)
     {
         if (e.Key == "Backspace" && string.IsNullOrEmpty(codigoDigitos[index]) && index > 0)
         {
             codigoDigitos[index - 1] = "";
             StateHasChanged();
+            // volta ao campo anterior
+            await JS.InvokeVoidAsync("focusElement", $"cod-{index - 1}");
         }
     }
 
@@ -1266,6 +1275,13 @@
 }
 
 @* CSS *@
+<script>
+    window.focusElement = function(id) {
+        var el = document.getElementById(id);
+        if (el) { el.focus(); el.select(); }
+    };
+</script>
+
 <style>
     @@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap');
 
@@ -1276,8 +1292,8 @@
     }
 
     /* ══════════════════════════════════════════
-               MODO CLARO (padrão)
-            ══════════════════════════════════════════ */
+                   MODO CLARO (padrão)
+                ══════════════════════════════════════════ */
     :root {
         --bg: #f0f2f5;
         --bg2: #f8f9fb;
@@ -1306,8 +1322,8 @@
     }
 
     /* ══════════════════════════════════════════
-               MODO ESCURO — sobrescreve as variáveis
-            ══════════════════════════════════════════ */
+                   MODO ESCURO — sobrescreve as variáveis
+                ══════════════════════════════════════════ */
     .dark {
         --bg: #08090c;
         --bg2: #0e1016;
@@ -1417,8 +1433,8 @@
         }
 
     /* ══════════════════════════════════════════
-               ESTILOS COMUNS (usam variáveis, funcionam em ambos os modos)
-            ══════════════════════════════════════════ */
+                   ESTILOS COMUNS (usam variáveis, funcionam em ambos os modos)
+                ══════════════════════════════════════════ */
 
     /* Toggle button */
     .btn-tema {

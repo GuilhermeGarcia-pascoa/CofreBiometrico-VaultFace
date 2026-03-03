@@ -1207,61 +1207,35 @@
             .ToList();
     }
 
-    private async Task ExecutarReset()
+    private void ExecutarReset()
     {
         if (executandoAcao) return;
-        executandoAcao = true;
-        acaoAtiva = "reset";
-        StateHasChanged();
 
-        await Task.Run(() =>
-        {
-            // cria um banco novo — o antigo fica intocado mas deixa de ser usado
-            BancoService.ResetarSistema(Estado.UsuarioAtual?.Nome ?? "Master");
-        });
+        // prepara o estado de verificação e redireciona para a página de segurança
+        Estado.AcaoPendente = AcaoCritica.ResetarSistema;
+        Estado.NomeAlvoVerificacao = Estado.UsuarioAtual?.Nome ?? "";
+        Estado.IdNovoMasterPendente = 0;
 
         confirmarReset = false;
-        executandoAcao = false;
-        acaoAtiva = "";
-
-        // redireciona para o login — a sessão atual apontava para o banco antigo
-        Estado.Logout();
-        Estado.EstadoCofreAtual = EstadoCofre.Fechado;
-        Navigation.NavigateTo("/", replace: true);
+        Navigation.NavigateTo("/verificacao-seguranca");
     }
 
-    private async Task ExecutarTransferencia()
+    private void ExecutarTransferencia()
     {
-        if (executandoAcao || idNovoMasterSelecionado == 0) return;
-        executandoAcao = true;
-        acaoAtiva = "transferencia";
-        StateHasChanged();
+        if (idNovoMasterSelecionado == 0) return;
 
-        int idAtual = Estado.UsuarioAtual!.Id;
-        int idNovo = idNovoMasterSelecionado;
-        string nomeNovo = listaUsuarios?.FirstOrDefault(u => u.Id == idNovo)?.Nome ?? "?";
+        string nomeNovo = listaUsuarios?.FirstOrDefault(u => u.Id == idNovoMasterSelecionado)?.Nome ?? "?";
 
-        await Task.Run(() =>
-        {
-            BancoService.TransferirAdminMaster(idAtual, idNovo);
-            BancoService.RegistrarLog(
-                Estado.UsuarioAtual.Nome ?? "Master",
-                "Transferência Master",
-                $"Nível Master transferido para {nomeNovo} (ID {idNovo}).");
-        });
-
-        // atualiza a permissão na sessão atual — o user deixa de ser master
-        if (Estado.UsuarioAtual != null)
-            Estado.UsuarioAtual.Permissao = NivelPermissao.AdminComum;
+        // prepara o estado de verificação e redireciona para a página de segurança
+        Estado.AcaoPendente = AcaoCritica.TransferirMaster;
+        Estado.NomeAlvoVerificacao = nomeNovo;
+        Estado.IdNovoMasterPendente = idNovoMasterSelecionado;
 
         modalTransferenciaVisivel = false;
         idNovoMasterSelecionado = 0;
         termoPesquisaTransferencia = "";
-        executandoAcao = false;
-        acaoAtiva = "";
 
-        // redireciona para o painel normal — já não tem acesso à zona restrita
-        Navigation.NavigateTo("/UserLogado", replace: true);
+        Navigation.NavigateTo("/verificacao-seguranca");
     }
 }
 

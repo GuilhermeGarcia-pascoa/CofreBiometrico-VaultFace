@@ -250,5 +250,120 @@ namespace PapAtualizacaoBeleza
                 "</td></tr></table>" +
                 "</body></html>";
         }
+        // envia email de verificação para ação crítica (reset ou transferência de master)
+        public async Task<string> EnviarVerificacaoAcaoCriticaAsync(
+            string emailDestino, string nomeMaster, AcaoCritica acao, string nomeAlvo)
+        {
+            string codigo = GerarCodigo6Digitos();
+            string assunto = acao == AcaoCritica.ResetarSistema
+                ? "Confirmação de Reset do Sistema — VaultFace"
+                : "Confirmação de Transferência Master — VaultFace";
+
+            await EnviarEmailAsync(
+                emailDestino,
+                nomeMaster,
+                assunto,
+                CorpoVerificacaoAcaoCritica(nomeMaster, codigo, acao, nomeAlvo)
+            );
+            return codigo;
+        }
+
+        private static string CorpoVerificacaoAcaoCritica(
+            string nomeMaster, string codigo, AcaoCritica acao, string nomeAlvo)
+        {
+            string bloco1 = codigo[..3];
+            string bloco2 = codigo[3..];
+            string ano = DateTime.Now.Year.ToString();
+
+            string accentColor = acao == AcaoCritica.ResetarSistema ? "#dc2626" : "#d97706";
+            string accentBg = acao == AcaoCritica.ResetarSistema ? "#fef2f2" : "#fffbeb";
+            string accentBr = acao == AcaoCritica.ResetarSistema ? "#fecaca" : "#fde68a";
+            string accentLight = acao == AcaoCritica.ResetarSistema ? "#fee2e2" : "#fef3c7";
+
+            string tituloBanner = acao == AcaoCritica.ResetarSistema
+                ? "Reset Total do Sistema"
+                : "Transferência de Admin Master";
+
+            string descricaoBanner = acao == AcaoCritica.ResetarSistema
+                ? "Esta ação irá criar uma nova base de dados. O sistema ficará vazio."
+                : $"O nível Master será transferido para <strong>{nomeAlvo}</strong>. Perderá o acesso à Zona Restrita.";
+
+            string labelStep2 = acao == AcaoCritica.ResetarSistema
+                ? $"Confirme o seu próprio nome: <strong>{nomeAlvo}</strong>"
+                : $"Confirme o nome do novo master: <strong>{nomeAlvo}</strong>";
+
+            return
+                "<!DOCTYPE html>" +
+                "<html lang=\"pt\">" +
+                "<head>" +
+                "<meta charset=\"UTF-8\" />" +
+                "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1.0\" />" +
+                $"<title>{tituloBanner} — VaultFace</title>" +
+                "</head>" +
+                $"<body style=\"margin:0;padding:0;background:{BgPage};{FontFamily}\">" +
+
+                $"<table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"background:{BgPage};\">" +
+                "<tr><td align=\"center\" style=\"padding:48px 16px;\">" +
+
+                $"<table width=\"560\" cellpadding=\"0\" cellspacing=\"0\" style=\"background:{BgCard};border-radius:8px;{CardShadow}border-collapse:collapse;\">" +
+
+                $"<tr><td style=\"background:{accentColor};border-radius:8px 8px 0 0;height:4px;font-size:0;line-height:0;\">&nbsp;</td></tr>" +
+
+                $"<tr><td style=\"padding:32px 48px 24px;border-bottom:1px solid {BorderColor};\">" +
+                "<table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\"><tr>" +
+                "<td style=\"vertical-align:middle;\">" +
+                "<table cellpadding=\"0\" cellspacing=\"0\"><tr>" +
+                $"<td style=\"background:{AccentBlue};border-radius:6px;width:32px;height:32px;text-align:center;vertical-align:middle;\">" +
+                "<span style=\"color:#ffffff;font-size:16px;font-weight:700;line-height:32px;\">V</span></td>" +
+                $"<td style=\"padding-left:10px;vertical-align:middle;\"><span style=\"font-size:17px;font-weight:700;color:{TextPrimary};letter-spacing:-0.3px;\">VaultFace</span></td>" +
+                "</tr></table></td>" +
+                $"<td align=\"right\" style=\"vertical-align:middle;\"><span style=\"font-size:11px;color:{accentColor};font-weight:700;text-transform:uppercase;letter-spacing:0.8px;\">Ação Crítica</span></td>" +
+                "</tr></table></td></tr>" +
+
+                "<tr><td style=\"padding:36px 48px 32px;\">" +
+
+                $"<p style=\"margin:0 0 4px;font-size:13px;color:{TextMuted};font-weight:500;\">Olá, {nomeMaster}</p>" +
+                $"<h1 style=\"margin:0 0 8px;font-size:22px;font-weight:700;color:{TextPrimary};letter-spacing:-0.5px;line-height:1.3;\">Verificação de segurança obrigatória</h1>" +
+                $"<p style=\"margin:0 0 28px;font-size:14px;color:#475569;line-height:1.7;\">Foi solicitada uma ação de alto risco no painel VaultFace. Complete os <strong>2 passos</strong> na aplicação para prosseguir.</p>" +
+
+                $"<table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"margin-bottom:28px;\"><tr>" +
+                $"<td style=\"background:{accentBg};border:1px solid {accentBr};border-left:4px solid {accentColor};border-radius:6px;padding:16px 20px;\">" +
+                $"<p style=\"margin:0 0 4px;font-size:11px;font-weight:700;color:{accentColor};text-transform:uppercase;letter-spacing:1px;\">Ação em curso</p>" +
+                $"<p style=\"margin:0 0 6px;font-size:15px;font-weight:700;color:{TextPrimary};\">{tituloBanner}</p>" +
+                $"<p style=\"margin:0;font-size:13px;color:#475569;\">{descricaoBanner}</p>" +
+                "</td></tr></table>" +
+
+                $"<table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"margin-bottom:16px;\"><tr>" +
+                $"<td style=\"background:{BgSubtle};border:1px solid {BorderColor};border-radius:8px;padding:24px;\">" +
+                $"<p style=\"margin:0 0 4px;font-size:11px;font-weight:700;color:{TextDim};text-transform:uppercase;letter-spacing:1.2px;\">Passo 1 — Código de verificação</p>" +
+                $"<p style=\"margin:0 0 16px;font-size:13px;color:{TextMuted};\">Introduza este código na aplicação:</p>" +
+                $"<p style=\"margin:0;font-size:44px;font-weight:800;color:{accentColor};letter-spacing:8px;font-family:'Courier New',Courier,monospace;line-height:1;\">" +
+                $"{bloco1}<span style=\"color:#cbd5e1;font-weight:200;font-size:36px;letter-spacing:0;margin:0 6px;vertical-align:middle;\">&#8211;</span>{bloco2}</p>" +
+                $"<p style=\"margin:12px 0 0;font-size:12px;color:{TextDim};\">Válido durante <strong style=\"color:{TextMuted};\">10 minutos</strong></p>" +
+                "</td></tr></table>" +
+
+                $"<table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"margin-bottom:28px;\"><tr>" +
+                $"<td style=\"background:{accentLight};border:1px solid {accentBr};border-radius:8px;padding:20px 24px;\">" +
+                $"<p style=\"margin:0 0 4px;font-size:11px;font-weight:700;color:{accentColor};text-transform:uppercase;letter-spacing:1.2px;\">Passo 2 — Confirmar nome</p>" +
+                $"<p style=\"margin:0;font-size:13px;color:{TextPrimary};line-height:1.7;\">{labelStep2}</p>" +
+                "</td></tr></table>" +
+
+                $"<table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\"><tr>" +
+                $"<td style=\"border-left:3px solid {accentBr};padding:12px 16px;\">" +
+                $"<p style=\"margin:0;font-size:13px;color:{TextMuted};line-height:1.6;\">Se não foi você a iniciar esta ação, cancele imediatamente na aplicação.</p>" +
+                "</td></tr></table>" +
+
+                "</td></tr>" +
+
+                $"<tr><td style=\"padding:20px 48px 28px;border-top:1px solid {BorderColor};\">" +
+                $"<p style=\"margin:0;font-size:11px;color:{TextDim};line-height:1.6;\">© {ano} VaultFace &nbsp;·&nbsp; Gerado automaticamente &nbsp;·&nbsp; Não responda a este email</p>" +
+                "</td></tr>" +
+
+                "</table>" +
+                "</td></tr></table>" +
+                "</body></html>";
+        }
+
+
     }
 }

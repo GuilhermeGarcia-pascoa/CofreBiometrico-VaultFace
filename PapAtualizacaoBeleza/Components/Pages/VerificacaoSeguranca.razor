@@ -1,0 +1,1387 @@
+﻿@page "/verificacao-seguranca"
+@layout EmptyLayout
+@rendermode InteractiveServer
+
+@using PapAtualizacaoBeleza
+@inject NavigationManager Navigation
+@inject EstadoApp Estado
+@inject EmailService EmailSvc
+@inject BaseSql BancoService
+@inject TemaService Tema
+
+<PageTitle>VaultFace — Verificação de Segurança</PageTitle>
+
+<div class="page @(Tema.ModoEscuro ? "dark" : "")">
+
+    @* ── PAINEL ESQUERDO ── *@
+    <aside class="vs-aside @(IsReset ? "vs-aside--red" : "vs-aside--amber")">
+
+        <div class="vs-aside-brand">
+            <div class="vs-aside-lock">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </svg>
+            </div>
+            <span>VaultFace</span>
+        </div>
+
+        <div class="vs-aside-content">
+            <div class="vs-aside-icon-wrap">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="32" height="32">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                </svg>
+            </div>
+            <h2 class="vs-aside-title">Verificação de Segurança</h2>
+            <p class="vs-aside-desc">
+                Esta ação requer confirmação em múltiplos passos para proteger o sistema.
+            </p>
+
+            <div class="vs-aside-action-box">
+                <p class="vs-aside-action-label">Ação solicitada</p>
+                <p class="vs-aside-action-name">
+                    @(IsReset ? "Reset Total do Sistema" : "Transferência de Master")
+                </p>
+                @if (!IsReset)
+                {
+                    <p class="vs-aside-action-target">→ @Estado.NomeAlvoVerificacao</p>
+                }
+            </div>
+
+            <div class="vs-aside-steps">
+                @{
+                    int totalPassos = IsReset ? 2 : (novoEmailDigitado.Length > 0 ? 3 : 2);
+                }
+
+                @* Step 1 *@
+                <div class="vs-aside-step @(passo == 1 ? "vs-aside-step--active" : passo > 1 ? "vs-aside-step--done" : "")">
+                    <div class="vs-aside-step-dot">
+                        @if (passo > 1)
+                        {
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" width="10" height="10">
+                                <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                        }
+                        else
+                        {
+
+                            <text>1</text>
+                        }
+                    </div>
+                    <span>Código por email</span>
+                </div>
+
+                <div class="vs-aside-step-connector @(passo > 1 ? "vs-aside-step-connector--done" : "")"></div>
+
+                @* Step 2 *@
+                <div class="vs-aside-step @(passo == 2 ? "vs-aside-step--active" : passo > 2 ? "vs-aside-step--done" : "")">
+                    <div class="vs-aside-step-dot">
+                        @if (passo > 2)
+                        {
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" width="10" height="10">
+                                <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                        }
+                        else
+                        {
+
+                            <text>2</text>
+                        }
+                    </div>
+                    <span>@(IsReset ? "Confirmar nome" : "Nome + email")</span>
+                </div>
+
+                @* Step 3 — só aparece para transferência com novo email *@
+                @if (!IsReset)
+                {
+                    <div class="vs-aside-step-connector @(passo > 2 ? "vs-aside-step-connector--done" : "")"></div>
+                    <div class="vs-aside-step @(passo == 3 ? "vs-aside-step--active" : "")">
+                        <div class="vs-aside-step-dot">3</div>
+                        <span>Verificar novo email</span>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <p class="vs-aside-footer">Ação irreversível · Proceda com cautela</p>
+    </aside>
+
+    @* ── PAINEL DIREITO ── *@
+    <main class="vs-main">
+        <div class="vs-form-wrap">
+
+            @* ══════════════ PASSO 1 — Código ══════════════ *@
+            @if (passo == 1)
+            {
+                <div class="vs-pane">
+                    <div class="vs-pane-header">
+                        <span class="vs-pane-step-tag">Passo 1 de @(IsReset ? "2" : "2–3")</span>
+                        <h1 class="vs-pane-title">Verifique o seu email</h1>
+                        <p class="vs-pane-sub">
+                            Enviámos um código de 6 dígitos para o email registado da conta master.
+                            Introduza-o abaixo para continuar.
+                        </p>
+                    </div>
+
+                    @if (envioEmCurso)
+                    {
+                        <div class="vs-status-box">
+                            <div class="vs-spinner"></div>
+                            <span>A enviar email de verificação...</span>
+                        </div>
+                    }
+                    else if (erroEnvio)
+                    {
+                        <div class="vs-status-box vs-status-box--error">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="flex-shrink:0;">
+                                <circle cx="12" cy="12" r="10" />
+                                <line x1="12" y1="8" x2="12" y2="12" />
+                                <line x1="12" y1="16" x2="12.01" y2="16" />
+                            </svg>
+                            <span>Falha ao enviar email. Verifique as configurações SMTP ou se o email master está confirmado.</span>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="vs-code-area">
+                            <label class="vs-label">Código de verificação</label>
+                            <div class="vs-code-wrap" @onclick="FocarInputCodigo">
+                                <input id="vs-cod-input"
+                                       class="vs-cod-hidden"
+                                       type="text"
+                                       inputmode="numeric"
+                                       maxlength="6"
+                                       autocomplete="one-time-code"
+                                       @oninput="OnCodigoInput"
+                                       @onkeydown="OnCodigoKeyDown"
+                                       @onfocus="@(() => codFocado = true)"
+                                       @onblur="@(() => codFocado = false)" />
+                                @for (int i = 0; i < 6; i++)
+                                {
+                                    int idx = i;
+                                    bool ativo = codFocado && codigoDigitado.Length == idx;
+                                    bool cheio = codigoDigitado.Length > idx;
+                                    <div class="vs-cod-box @(ativo ? "vs-cod-box--active" : "") @(cheio ? "vs-cod-box--filled" : "") @(erroCodigo ? "vs-cod-box--error" : "")">
+                                        @(cheio? codigoDigitado[idx].ToString() : "")
+                                    </div>
+                                    @if (idx == 2)
+                                    {
+                                        <span class="vs-cod-sep">–</span>
+                                    }
+                                }
+                            </div>
+                            @if (erroCodigo)
+                            {
+                                <p class="vs-field-error">
+                                    @if (Estado.CodigoExpirado)
+                                    {
+                                        <text>Código expirado. </text>
+                                        <button class="vs-link" @onclick="ReenviarCodigo">Reenviar novo código</button>
+                                    }
+                                    else
+                                    {
+                                        <text>Código incorreto. Verifique e tente novamente.</text>
+                                    }
+                                </p>
+                            }
+                        </div>
+
+                        <div class="vs-actions">
+                            <button class="vs-btn-ghost" @onclick="Cancelar">Cancelar</button>
+                            <button class="vs-btn-confirm @(IsReset ? "vs-btn--red" : "vs-btn--amber")"
+                                    @onclick="VerificarCodigo"
+                                    disabled="@(codigoDigitado.Length < 6)">
+                                Continuar →
+                            </button>
+                        </div>
+
+                        <p class="vs-hint">
+                            Não recebeu?
+                            <button class="vs-link" @onclick="ReenviarCodigo" disabled="@reenvioEmCurso">
+                                @(reenvioEmCurso ? "A reenviar..." : "Reenviar código")
+                            </button>
+                        </p>
+                    }
+                </div>
+            }
+
+            @* ══════════════ PASSO 2 — Nome + Email ══════════════ *@
+            @if (passo == 2)
+            {
+                <div class="vs-pane">
+                    <div class="vs-pane-header">
+                        <span class="vs-pane-step-tag">Passo 2 de @(IsReset ? "2" : "2–3")</span>
+                        <h1 class="vs-pane-title">@(IsReset ? "Confirme o nome" : "Confirme a transferência")</h1>
+                        <p class="vs-pane-sub">
+                            @if (IsReset)
+                            {
+                                <text>Escreva o <strong>seu próprio nome</strong> exatamente como aparece no sistema para confirmar o reset.</text>
+                            }
+                            else
+                            {
+                                <text>Confirme o nome do novo master. Pode também definir um novo email para a conta.</text>
+                            }
+                        </p>
+                    </div>
+
+                    @* Nome a confirmar *@
+                    <div class="vs-name-ref @(IsReset ? "vs-name-ref--red" : "vs-name-ref--amber")">
+                        <span class="vs-name-ref-label">@(IsReset ? "O seu nome" : "Nome do novo master")</span>
+                        <span class="vs-name-ref-value">@Estado.NomeAlvoVerificacao</span>
+                    </div>
+
+                    <div class="vs-field-group" style="margin-bottom: 24px;">
+                        <label class="vs-label">Escreva o nome aqui</label>
+                        <input class="vs-text-input @(erroNome ? "vs-text-input--error" : "")"
+                               type="text"
+                               placeholder="@Estado.NomeAlvoVerificacao"
+                               @bind="nomeDigitado"
+                               @bind:event="oninput"
+                               @onkeydown="OnNomeKeyDown" />
+                        @if (erroNome)
+                        {
+                            <p class="vs-field-error">Nome incorreto. Atenção a maiúsculas e espaços.</p>
+                        }
+                    </div>
+
+                    @* Campo de email — só aparece em transferência *@
+                    @if (!IsReset)
+                    {
+                        <div class="vs-email-section">
+                            <div class="vs-email-section-header">
+                                <div>
+                                    <p class="vs-email-section-title">Novo email para o master</p>
+                                    <p class="vs-email-section-sub">Opcional. Se vazio, o email atual é mantido.</p>
+                                </div>
+                                <span class="vs-badge-optional">Opcional</span>
+                            </div>
+
+                            <div class="vs-field-group">
+                                <input class="vs-text-input @(erroEmail ? "vs-text-input--error" : "")"
+                                       type="email"
+                                       placeholder="novo@email.com"
+                                       @bind="novoEmailDigitado"
+                                       @bind:event="oninput" />
+                                @if (erroEmail)
+                                {
+                                    <p class="vs-field-error">Email inválido. Verifique o formato.</p>
+                                }
+                            </div>
+
+                            @if (!string.IsNullOrWhiteSpace(novoEmailDigitado))
+                            {
+                                <div class="vs-email-notice">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="flex-shrink:0; margin-top:1px;">
+                                        <circle cx="12" cy="12" r="10" />
+                                        <line x1="12" y1="8" x2="12" y2="12" />
+                                        <line x1="12" y1="16" x2="12.01" y2="16" />
+                                    </svg>
+                                    <span>Será enviado um código de confirmação para <strong>@novoEmailDigitado</strong> antes de guardar.</span>
+                                </div>
+                            }
+                        </div>
+                    }
+
+                    <div class="vs-actions">
+                        <button class="vs-btn-ghost" @onclick="VoltarStep1">← Voltar</button>
+                        <button class="vs-btn-confirm @(IsReset ? "vs-btn--red" : "vs-btn--amber")"
+                                @onclick="AvancarDoStep2"
+                                disabled="@(string.IsNullOrWhiteSpace(nomeDigitado) || executando)">
+                            @if (!IsReset && !string.IsNullOrWhiteSpace(novoEmailDigitado))
+                            {
+                                <text>Verificar email →</text>
+                            }
+                            else if (IsReset)
+                            {
+                                @if (executando)
+                                {
+                                    <span class="vs-spinner-sm"></span>
+                                    <span>A resetar...</span>
+                                }
+                                else
+                                {
+                                    <text>Resetar sistema agora</text>
+                                }
+                            }
+                            else
+                            {
+                                @if (executando)
+                                {
+                                    <span class="vs-spinner-sm"></span>
+                                    <span>A transferir...</span>
+                                }
+                                else
+                                {
+                                    <text>Transferir master agora</text>
+                                }
+                            }
+                        </button>
+                    </div>
+                </div>
+            }
+
+            @* ══════════════ PASSO 3 — Verificar Novo Email ══════════════ *@
+            @if (passo == 3)
+            {
+                <div class="vs-pane">
+                    <div class="vs-pane-header">
+                        <span class="vs-pane-step-tag">Passo 3 de 3</span>
+                        <h1 class="vs-pane-title">Confirme o novo email</h1>
+                        <p class="vs-pane-sub">
+                            Enviámos um código de verificação para <strong>@novoEmailDigitado</strong>.
+                            Introduza-o abaixo para confirmar que o email é válido.
+                        </p>
+                    </div>
+
+                    @* destaque do email novo *@
+                    <div class="vs-name-ref vs-name-ref--amber" style="margin-bottom: 24px;">
+                        <span class="vs-name-ref-label">Novo email da conta master</span>
+                        <span class="vs-name-ref-value" style="font-size:15px; word-break:break-all;">@novoEmailDigitado</span>
+                    </div>
+
+                    @if (envioEmailNovoEmCurso)
+                    {
+                        <div class="vs-status-box">
+                            <div class="vs-spinner"></div>
+                            <span>A enviar código para o novo email...</span>
+                        </div>
+                    }
+                    else if (erroEnvioEmailNovo)
+                    {
+                        <div class="vs-status-box vs-status-box--error">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="flex-shrink:0;">
+                                <circle cx="12" cy="12" r="10" />
+                                <line x1="12" y1="8" x2="12" y2="12" />
+                                <line x1="12" y1="16" x2="12.01" y2="16" />
+                            </svg>
+                            <span>Não foi possível enviar o email. Verifique o endereço e tente novamente.</span>
+                        </div>
+                        <div class="vs-actions">
+                            <button class="vs-btn-ghost" @onclick="VoltarStep2">← Corrigir email</button>
+                            <button class="vs-btn-confirm vs-btn--amber" @onclick="EnviarCodigoNovoEmail">Reenviar</button>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="vs-code-area">
+                            <label class="vs-label">Código de verificação</label>
+                            <div class="vs-code-wrap" @onclick="FocarInputCodigoNovo">
+                                <input id="vs-cod-novo-input"
+                                       class="vs-cod-hidden"
+                                       type="text"
+                                       inputmode="numeric"
+                                       maxlength="6"
+                                       autocomplete="one-time-code"
+                                       @oninput="OnCodigoNovoEmailInput"
+                                       @onkeydown="OnCodigoNovoEmailKeyDown"
+                                       @onfocus="@(() => codNovoFocado = true)"
+                                       @onblur="@(() => codNovoFocado = false)" />
+                                @for (int i = 0; i < 6; i++)
+                                {
+                                    int idx = i;
+                                    bool ativo = codNovoFocado && codigoNovoEmailDigitado.Length == idx;
+                                    bool cheio = codigoNovoEmailDigitado.Length > idx;
+                                    <div class="vs-cod-box @(ativo ? "vs-cod-box--active" : "") @(cheio ? "vs-cod-box--filled" : "") @(erroCodigoNovo ? "vs-cod-box--error" : "")">
+                                        @(cheio? codigoNovoEmailDigitado[idx].ToString() : "")
+                                    </div>
+                                    @if (idx == 2)
+                                    {
+                                        <span class="vs-cod-sep">–</span>
+                                    }
+                                }
+                            </div>
+                            @if (erroCodigoNovo)
+                            {
+                                <p class="vs-field-error">Código incorreto. Verifique e tente novamente.</p>
+                            }
+                        </div>
+
+                        <div class="vs-actions">
+                            <button class="vs-btn-ghost" @onclick="VoltarStep2">← Voltar</button>
+                            <button class="vs-btn-confirm vs-btn--amber"
+                                    @onclick="ConfirmarEmailNovoEExecutar"
+                                    disabled="@(codigoNovoEmailDigitado.Length < 6 || executando)">
+                                @if (executando)
+                                {
+                                    <span class="vs-spinner-sm"></span>
+                                    <span>A transferir...</span>
+                                }
+                                else
+                                {
+                                    <text>Confirmar e transferir →</text>
+                                }
+                            </button>
+                        </div>
+
+                        <p class="vs-hint">
+                            Não recebeu?
+                            <button class="vs-link" @onclick="EnviarCodigoNovoEmail" disabled="@reenvioNovoEmailCurso">
+                                @(reenvioNovoEmailCurso ? "A reenviar..." : "Reenviar código")
+                            </button>
+                            &nbsp;·&nbsp;
+                            <button class="vs-link" @onclick="VoltarStep2">Corrigir email</button>
+                        </p>
+                    }
+                </div>
+            }
+
+        </div>
+    </main>
+</div>
+
+@code {
+    // ── estado geral ──
+    private int passo = 1;
+    private bool _codigoJaEnviado = false;
+    private bool IsReset => Estado.AcaoPendente == AcaoCritica.ResetarSistema;
+
+    // ── step 1 — código existente ──
+    private bool envioEmCurso = true;
+    private bool erroEnvio = false;
+    private bool reenvioEmCurso = false;
+    private string codigoDigitado = "";
+    private bool codFocado = false;
+    private bool erroCodigo = false;
+
+    // ── step 2 — nome + email opcional ──
+    private string nomeDigitado = "";
+    private bool erroNome = false;
+    private string novoEmailDigitado = "";
+    private bool erroEmail = false;
+    private bool executando = false;
+
+    // ── step 3 — verificar novo email ──
+    private string codigoNovoEmail = "";           // guardado para comparar
+    private string codigoNovoEmailDigitado = "";   // o que o user digitou
+    private bool codNovoFocado = false;
+    private bool erroCodigoNovo = false;
+    private bool envioEmailNovoEmCurso = false;
+    private bool erroEnvioEmailNovo = false;
+    private bool reenvioNovoEmailCurso = false;
+
+    // ── lifecycle ──
+
+    protected override void OnInitialized()
+    {
+        if (!Estado.EstadoLogado ||
+            Estado.UsuarioAtual?.Permissao != NivelPermissao.AdminSupremo ||
+            Estado.AcaoPendente == null)
+        {
+            Navigation.NavigateTo("/admin", replace: true);
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _codigoJaEnviado) return;
+        if (Estado.AcaoPendente == null) return;
+        _codigoJaEnviado = true;
+        await EnviarCodigoInicial();
+    }
+
+    // ── step 1 — envio e verificação do código atual ──
+
+    private async Task EnviarCodigoInicial()
+    {
+        envioEmCurso = true;
+        erroEnvio = false;
+        StateHasChanged();
+        try
+        {
+            var (email, confirmado) = BancoService.ObterEmailUserMaster();
+            if (string.IsNullOrEmpty(email) || !confirmado) { erroEnvio = true; return; }
+
+            string codigo = await EmailSvc.EnviarVerificacaoAcaoCriticaAsync(
+                email, Estado.UsuarioAtual!.Nome,
+                Estado.AcaoPendente!.Value, Estado.NomeAlvoVerificacao);
+
+            Estado.CodigoVerificacaoPendente = codigo;
+            Estado.CodigoGeradoEm = DateTime.Now;
+        }
+        catch { erroEnvio = true; }
+        finally { envioEmCurso = false; StateHasChanged(); }
+    }
+
+    private async Task ReenviarCodigo()
+    {
+        reenvioEmCurso = true;
+        codigoDigitado = "";
+        erroCodigo = false;
+        StateHasChanged();
+        await EnviarCodigoInicial();
+        reenvioEmCurso = false;
+        StateHasChanged();
+    }
+
+    private void OnCodigoInput(ChangeEventArgs e)
+    {
+        string raw = e.Value?.ToString() ?? "";
+        codigoDigitado = new string(raw.Where(char.IsDigit).ToArray());
+        if (codigoDigitado.Length > 6) codigoDigitado = codigoDigitado[..6];
+        erroCodigo = false;
+        if (codigoDigitado.Length == 6) VerificarCodigo();
+    }
+
+    private void OnCodigoKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Backspace" && codigoDigitado.Length > 0)
+            codigoDigitado = codigoDigitado[..^1];
+    }
+
+    private void FocarInputCodigo() { }
+
+    private void VerificarCodigo()
+    {
+        if (Estado.CodigoExpirado) { erroCodigo = true; return; }
+        if (codigoDigitado != Estado.CodigoVerificacaoPendente)
+        {
+            erroCodigo = true;
+            codigoDigitado = "";
+            return;
+        }
+        erroCodigo = false;
+        passo = 2;
+    }
+
+    // ── step 2 — confirmar nome + email opcional ──
+
+    private void OnNomeKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(nomeDigitado))
+            AvancarDoStep2();
+    }
+
+    private async void AvancarDoStep2()
+    {
+        // validar nome
+        if (nomeDigitado.Trim() != Estado.NomeAlvoVerificacao.Trim())
+        {
+            erroNome = true;
+            return;
+        }
+        erroNome = false;
+
+        // validar email se foi introduzido
+        if (!string.IsNullOrWhiteSpace(novoEmailDigitado))
+        {
+            if (!novoEmailDigitado.Contains('@') || !novoEmailDigitado.Contains('.'))
+            {
+                erroEmail = true;
+                return;
+            }
+            erroEmail = false;
+
+            // avança para step 3 — verificar o novo email
+            passo = 3;
+            await EnviarCodigoNovoEmail();
+            return;
+        }
+
+        // sem novo email — executa diretamente
+        await ExecutarAcao(novoEmail: null);
+    }
+
+    private void VoltarStep1()
+    {
+        passo = 1;
+        codigoDigitado = "";
+        nomeDigitado = "";
+        erroNome = false;
+        erroEmail = false;
+        erroCodigo = false;
+    }
+
+    // ── step 3 — verificar novo email ──
+
+    private async Task EnviarCodigoNovoEmail()
+    {
+        reenvioNovoEmailCurso = true;
+        envioEmailNovoEmCurso = true;
+        erroEnvioEmailNovo = false;
+        codigoNovoEmailDigitado = "";
+        erroCodigoNovo = false;
+        StateHasChanged();
+
+        try
+        {
+            // envia código para o NOVO email — usa o método simples de verificação
+            string codigo = await EmailSvc.EnviarCodigoVerificacaoAsync(
+                novoEmailDigitado, Estado.NomeAlvoVerificacao);
+            codigoNovoEmail = codigo;
+        }
+        catch { erroEnvioEmailNovo = true; }
+        finally
+        {
+            envioEmailNovoEmCurso = false;
+            reenvioNovoEmailCurso = false;
+            StateHasChanged();
+        }
+    }
+
+    private void OnCodigoNovoEmailInput(ChangeEventArgs e)
+    {
+        string raw = e.Value?.ToString() ?? "";
+        codigoNovoEmailDigitado = new string(raw.Where(char.IsDigit).ToArray());
+        if (codigoNovoEmailDigitado.Length > 6) codigoNovoEmailDigitado = codigoNovoEmailDigitado[..6];
+        erroCodigoNovo = false;
+        if (codigoNovoEmailDigitado.Length == 6) ConfirmarEmailNovoEExecutar();
+    }
+
+    private void OnCodigoNovoEmailKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Backspace" && codigoNovoEmailDigitado.Length > 0)
+            codigoNovoEmailDigitado = codigoNovoEmailDigitado[..^1];
+    }
+
+    private void FocarInputCodigoNovo() { }
+
+    private async void ConfirmarEmailNovoEExecutar()
+    {
+        if (codigoNovoEmailDigitado != codigoNovoEmail)
+        {
+            erroCodigoNovo = true;
+            codigoNovoEmailDigitado = "";
+            return;
+        }
+        erroCodigoNovo = false;
+        await ExecutarAcao(novoEmail: novoEmailDigitado.Trim());
+    }
+
+    private void VoltarStep2()
+    {
+        passo = 2;
+        codigoNovoEmailDigitado = "";
+        erroCodigoNovo = false;
+        erroEnvioEmailNovo = false;
+    }
+
+    // ── execução final ──
+
+    private async Task ExecutarAcao(string? novoEmail)
+    {
+        executando = true;
+        StateHasChanged();
+
+        bool foiReset = IsReset;
+        int idNovoMaster = Estado.IdNovoMasterPendente;
+        string nomeMaster = Estado.UsuarioAtual?.Nome ?? "Master";
+        int idAtual = Estado.UsuarioAtual!.Id;
+
+        await Task.Run(() =>
+        {
+            if (foiReset)
+            {
+                BancoService.ResetarSistema(nomeMaster);
+            }
+            else
+            {
+                // atualiza email ANTES de transferir se foi fornecido
+                if (!string.IsNullOrEmpty(novoEmail))
+                    BancoService.AtualizarEmail(idNovoMaster, novoEmail, confirmado: true);
+
+                BancoService.TransferirAdminMaster(idAtual, idNovoMaster);
+            }
+        });
+
+        Estado.LimparVerificacao();
+
+        if (foiReset)
+        {
+            Estado.Logout();
+            Estado.EstadoCofreAtual = EstadoCofre.Fechado;
+            Navigation.NavigateTo("/", replace: true);
+        }
+        else
+        {
+            if (Estado.UsuarioAtual != null)
+                Estado.UsuarioAtual.Permissao = NivelPermissao.AdminComum;
+            Navigation.NavigateTo("/UserLogado", replace: true);
+        }
+    }
+
+    private void Cancelar()
+    {
+        Estado.LimparVerificacao();
+        Navigation.NavigateTo("/admin", replace: true);
+    }
+}
+
+<style>
+    @@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap');
+
+    *, *::before, *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+    }
+
+    :root {
+        --bg: #f0f2f5;
+        --surface: #ffffff;
+        --surface2: #f4f5f8;
+        --border: #e2e5ea;
+        --text: #111318;
+        --muted: #6b7280;
+        --dim: #9ca3af;
+        --red: #dc2626;
+        --red-bg: #fef2f2;
+        --red-br: #fecaca;
+        --amber: #d97706;
+        --amber-bg: #fffbeb;
+        --amber-br: #fde68a;
+        --green: #16a34a;
+        --accent: #1a56db;
+        --shadow: 0 4px 24px rgba(0,0,0,0.08);
+    }
+
+    .dark {
+        --bg: #08090c;
+        --surface: #131620;
+        --surface2: #1b1f2e;
+        --border: #252836;
+        --text: #e6e8f0;
+        --muted: #7b82a0;
+        --dim: #454c66;
+        --red: #f87171;
+        --red-bg: #1a0808;
+        --red-br: #7f1d1d;
+        --amber: #fbbf24;
+        --amber-bg: #1a1000;
+        --amber-br: #78350f;
+        --shadow: 0 8px 40px rgba(0,0,0,0.6);
+    }
+
+    body {
+        font-family: 'DM Sans', sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        -webkit-font-smoothing: antialiased;
+    }
+
+    .page {
+        width: 100vw;
+        min-height: 100vh;
+        display: grid;
+        grid-template-columns: 420px 1fr;
+        background: var(--bg);
+        overflow-x: hidden;
+    }
+
+    /* ── PAINEL ESQUERDO ── */
+    .vs-aside {
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh;
+        position: sticky;
+        top: 0;
+    }
+
+    .vs-aside--red {
+        background: var(--red);
+    }
+
+    .vs-aside--amber {
+        background: var(--amber);
+    }
+
+    .dark .vs-aside--red {
+        background: #7f1d1d;
+    }
+
+    .dark .vs-aside--amber {
+        background: #78350f;
+    }
+
+    .vs-aside-brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 24px 28px;
+        font-size: 15px;
+        font-weight: 700;
+        color: rgba(255,255,255,0.95);
+        letter-spacing: -0.3px;
+        border-bottom: 1px solid rgba(255,255,255,0.15);
+    }
+
+    .vs-aside-lock {
+        width: 30px;
+        height: 30px;
+        background: rgba(255,255,255,0.2);
+        border-radius: 7px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+        .vs-aside-lock svg {
+            width: 15px;
+            height: 15px;
+            color: white;
+        }
+
+    .vs-aside-content {
+        flex: 1;
+        padding: 40px 28px 28px;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .vs-aside-icon-wrap {
+        width: 56px;
+        height: 56px;
+        background: rgba(255,255,255,0.15);
+        border-radius: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        margin-bottom: 20px;
+    }
+
+    .vs-aside-title {
+        font-size: 22px;
+        font-weight: 700;
+        color: white;
+        letter-spacing: -0.5px;
+        margin-bottom: 10px;
+        line-height: 1.3;
+    }
+
+    .vs-aside-desc {
+        font-size: 13px;
+        color: rgba(255,255,255,0.75);
+        line-height: 1.65;
+        margin-bottom: 32px;
+    }
+
+    .vs-aside-action-box {
+        background: rgba(255,255,255,0.12);
+        border: 1px solid rgba(255,255,255,0.2);
+        border-radius: 10px;
+        padding: 16px 18px;
+        margin-bottom: 32px;
+    }
+
+    .vs-aside-action-label {
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: rgba(255,255,255,0.6);
+        margin-bottom: 6px;
+    }
+
+    .vs-aside-action-name {
+        font-size: 15px;
+        font-weight: 700;
+        color: white;
+        margin-bottom: 4px;
+    }
+
+    .vs-aside-action-target {
+        font-size: 13px;
+        color: rgba(255,255,255,0.8);
+        font-weight: 500;
+    }
+
+    .vs-aside-steps {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .vs-aside-step {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 13px;
+        font-weight: 500;
+        color: rgba(255,255,255,0.5);
+        padding: 6px 0;
+    }
+
+    .vs-aside-step--active {
+        color: white;
+    }
+
+    .vs-aside-step--done {
+        color: rgba(255,255,255,0.75);
+    }
+
+    .vs-aside-step-dot {
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        border: 2px solid rgba(255,255,255,0.3);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        font-weight: 700;
+        flex-shrink: 0;
+        color: rgba(255,255,255,0.4);
+        transition: all 0.2s;
+    }
+
+    .vs-aside-step--active .vs-aside-step-dot {
+        border-color: white;
+        background: white;
+        color: var(--red);
+    }
+
+    .vs-aside--amber .vs-aside-step--active .vs-aside-step-dot {
+        color: var(--amber);
+    }
+
+    .vs-aside-step--done .vs-aside-step-dot {
+        border-color: rgba(255,255,255,0.6);
+        background: rgba(255,255,255,0.15);
+        color: white;
+    }
+
+    .vs-aside-step-connector {
+        width: 2px;
+        height: 20px;
+        background: rgba(255,255,255,0.2);
+        margin-left: 12px;
+        border-radius: 2px;
+        transition: background 0.3s;
+    }
+
+    .vs-aside-step-connector--done {
+        background: rgba(255,255,255,0.5);
+    }
+
+    .vs-aside-footer {
+        padding: 20px 28px;
+        font-size: 11px;
+        color: rgba(255,255,255,0.4);
+        border-top: 1px solid rgba(255,255,255,0.12);
+        text-align: center;
+    }
+
+    /* ── PAINEL DIREITO ── */
+    .vs-main {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 60px;
+        min-height: 100vh;
+        background: var(--bg);
+    }
+
+    .vs-form-wrap {
+        width: 100%;
+        max-width: 640px;
+    }
+
+    .vs-pane {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        box-shadow: var(--shadow);
+        padding: 44px 52px;
+    }
+
+    .vs-pane-header {
+        margin-bottom: 32px;
+    }
+
+    .vs-pane-step-tag {
+        display: inline-block;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: var(--dim);
+        margin-bottom: 10px;
+    }
+
+    .vs-pane-title {
+        font-size: 28px;
+        font-weight: 700;
+        color: var(--text);
+        letter-spacing: -0.6px;
+        margin-bottom: 12px;
+        line-height: 1.2;
+    }
+
+    .vs-pane-sub {
+        font-size: 14px;
+        color: var(--muted);
+        line-height: 1.7;
+    }
+
+    /* status */
+    .vs-status-box {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 16px 18px;
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        font-size: 13px;
+        color: var(--muted);
+        margin-bottom: 24px;
+    }
+
+    .vs-status-box--error {
+        background: var(--red-bg);
+        border-color: var(--red-br);
+        color: var(--red);
+    }
+
+    .vs-spinner {
+        width: 18px;
+        height: 18px;
+        border: 2px solid var(--border);
+        border-top-color: var(--accent);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+        flex-shrink: 0;
+    }
+
+    @@keyframes spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    /* labels e inputs */
+    .vs-label {
+        display: block;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text);
+        margin-bottom: 10px;
+    }
+
+    .vs-code-area {
+        margin-bottom: 8px;
+    }
+
+    .vs-code-wrap {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        position: relative;
+        cursor: text;
+        user-select: none;
+    }
+
+    .vs-cod-hidden {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        opacity: 0;
+        z-index: 2;
+        cursor: text;
+        font-size: 1px;
+        color: transparent;
+        background: transparent;
+        border: none;
+        outline: none;
+        caret-color: transparent;
+    }
+
+    .vs-cod-box {
+        width: 68px;
+        height: 76px;
+        border: 2px solid var(--border);
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 28px;
+        font-weight: 700;
+        font-family: 'Courier New', monospace;
+        color: var(--text);
+        background: var(--surface2);
+        transition: all 0.15s;
+        position: relative;
+        z-index: 1;
+        flex-shrink: 0;
+    }
+
+    .vs-cod-box--active {
+        border-color: var(--accent);
+        background: var(--surface);
+        box-shadow: 0 0 0 3px rgba(26,86,219,0.12);
+    }
+
+    .vs-cod-box--filled {
+        background: var(--surface);
+        border-color: var(--dim);
+    }
+
+    .vs-cod-box--error {
+        border-color: var(--red) !important;
+        background: var(--red-bg) !important;
+    }
+
+    .vs-cod-sep {
+        font-size: 20px;
+        color: var(--dim);
+        font-weight: 300;
+        flex-shrink: 0;
+        z-index: 1;
+    }
+
+    .vs-field-error {
+        font-size: 12px;
+        color: var(--red);
+        margin-top: 10px;
+    }
+
+    .vs-hint {
+        font-size: 12px;
+        color: var(--dim);
+        text-align: center;
+        margin-top: 16px;
+    }
+
+    .vs-link {
+        background: none;
+        border: none;
+        color: var(--accent);
+        font-size: 12px;
+        font-family: 'DM Sans', sans-serif;
+        cursor: pointer;
+        padding: 0;
+        text-decoration: underline;
+        text-underline-offset: 2px;
+    }
+
+        .vs-link:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+    /* nome ref */
+    .vs-name-ref {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        padding: 16px 20px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        margin-bottom: 20px;
+    }
+
+    .vs-name-ref--red {
+        background: var(--red-bg);
+        border-color: var(--red-br);
+    }
+
+    .vs-name-ref--amber {
+        background: var(--amber-bg);
+        border-color: var(--amber-br);
+    }
+
+    .vs-name-ref-label {
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        color: var(--dim);
+    }
+
+    .vs-name-ref-value {
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--text);
+        letter-spacing: -0.3px;
+        font-family: 'Courier New', monospace;
+    }
+
+    /* secção de email */
+    .vs-email-section {
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 4px;
+    }
+
+    .vs-email-section-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 14px;
+    }
+
+    .vs-email-section-title {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text);
+        margin-bottom: 3px;
+    }
+
+    .vs-email-section-sub {
+        font-size: 12px;
+        color: var(--dim);
+    }
+
+    .vs-badge-optional {
+        flex-shrink: 0;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        padding: 2px 10px;
+        font-size: 10px;
+        font-weight: 700;
+        color: var(--dim);
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+    }
+
+    .vs-email-notice {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        margin-top: 10px;
+        padding: 10px 12px;
+        background: var(--amber-bg);
+        border: 1px solid var(--amber-br);
+        border-radius: 8px;
+        font-size: 12px;
+        color: var(--text);
+        line-height: 1.5;
+    }
+
+        .vs-email-notice svg {
+            color: var(--amber);
+        }
+
+    /* campo texto */
+    .vs-field-group {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .vs-text-input {
+        width: 100%;
+        padding: 12px 14px;
+        border: 2px solid var(--border);
+        border-radius: 10px;
+        font-size: 15px;
+        font-family: 'DM Sans', sans-serif;
+        color: var(--text);
+        background: var(--surface);
+        outline: none;
+        transition: border-color 0.15s;
+    }
+
+        .vs-text-input:focus {
+            border-color: var(--accent);
+        }
+
+    .vs-text-input--error {
+        border-color: var(--red) !important;
+    }
+
+    /* botões */
+    .vs-actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 28px;
+    }
+
+    .vs-btn-ghost {
+        padding: 11px 20px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: transparent;
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 500;
+        font-family: 'DM Sans', sans-serif;
+        cursor: pointer;
+        transition: all 0.15s;
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+
+        .vs-btn-ghost:hover {
+            border-color: var(--text);
+            color: var(--text);
+        }
+
+    .vs-btn-confirm {
+        flex: 1;
+        padding: 11px 20px;
+        border: none;
+        border-radius: 10px;
+        color: white;
+        font-size: 13px;
+        font-weight: 700;
+        font-family: 'DM Sans', sans-serif;
+        cursor: pointer;
+        transition: all 0.15s;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+    }
+
+        .vs-btn-confirm:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+    .vs-btn--red {
+        background: var(--red);
+    }
+
+    .vs-btn--amber {
+        background: var(--amber);
+    }
+
+    .vs-btn--red:hover:not(:disabled) {
+        background: #b91c1c;
+    }
+
+    .vs-btn--amber:hover:not(:disabled) {
+        background: #b45309;
+    }
+
+    .vs-spinner-sm {
+        width: 13px;
+        height: 13px;
+        border: 2px solid rgba(255,255,255,0.3);
+        border-top-color: white;
+        border-radius: 50%;
+        animation: spin 0.7s linear infinite;
+        flex-shrink: 0;
+    }
+
+    @@media (max-width: 900px) {
+        .page {
+            grid-template-columns: 1fr;
+        }
+
+        .vs-aside {
+            min-height: auto;
+            position: static;
+        }
+
+        .vs-main {
+            padding: 32px 20px;
+            min-height: auto;
+        }
+
+        .vs-pane {
+            padding: 28px 24px;
+        }
+
+        .vs-cod-box {
+            width: 48px;
+            height: 56px;
+            font-size: 22px;
+        }
+    }
+</style>
