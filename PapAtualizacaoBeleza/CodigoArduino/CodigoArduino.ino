@@ -20,5 +20,10 @@ void loop() {
     else if (comando == 'F') {
       motor.step(-passos90Graus); 
     }
+    // Ping de identificação — o C# envia 'P' para descobrir a porta certa.
+    // Responde com a string de identificação única do projeto.
+    else if (comando == 'P') {
+      Serial.println("VAULTFACE_OK");
+    }
   }
 }

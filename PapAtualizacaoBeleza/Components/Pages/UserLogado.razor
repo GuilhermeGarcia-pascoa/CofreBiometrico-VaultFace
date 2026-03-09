@@ -147,6 +147,29 @@
                     <p class="safe-status @SafeStatusClass()">@TextoEstado()</p>
                 </div>
 
+                @* Indicador de estado do Arduino *@
+                @if (aDetectarArduino)
+                {
+                    <div class="hw-status hw-status--searching">
+                        <div class="hw-status-dot hw-status-dot--pulse"></div>
+                        <span>A procurar Arduino...</span>
+                    </div>
+                }
+                else if (arduinoConectado)
+                {
+                    <div class="hw-status hw-status--ok">
+                        <div class="hw-status-dot"></div>
+                        <span>Arduino ligado em @portaArduino</span>
+                    </div>
+                }
+                else
+                {
+                    <div class="hw-status hw-status--offline">
+                        <div class="hw-status-dot"></div>
+                        <span>Arduino não encontrado</span>
+                    </div>
+                }
+
                 @* Mensagem de erro de hardware *@
                 @if (!string.IsNullOrEmpty(erroHardware))
                 {
@@ -164,7 +187,7 @@
                 @* Botão principal *@
                 <button class="btn-safe @BtnSafeClass()"
                         @onclick="OnClickCofre"
-                        disabled="@BloqueadoPorTransicao()">
+                        disabled="@(BloqueadoPorTransicao() || !arduinoConectado || aDetectarArduino)">
                     @if (estadoCofre == EstadoCofre.AAbrir)
                     {
                         <div class="btn-spinner"></div>
@@ -227,10 +250,14 @@
     private string? erroHardware = null;
     private bool mostrarPopupLogout = false;
 
-    private const string PORTA_COM = "COM4";
     private const int DURACAO_MOTOR_MS = 2500;
 
-    protected override void OnInitialized()
+    // Porta COM detetada automaticamente no arranque — null se Arduino não encontrado
+    private string? portaArduino = null;
+    private bool arduinoConectado => portaArduino != null;
+    private bool aDetectarArduino = false;
+
+    protected override async Task OnInitializedAsync()
     {
         if (Estado.UsuarioAtual == null)
         {
@@ -239,16 +266,25 @@
         }
 
         // ── CORREÇÃO 1: restaurar estado real do cofre ao reentrar na página ──
-        // Se o cofre estava a meio de uma transição quando o user saiu (ex: foi ao Admin
-        // durante a animação), tratamos como Fechado para ficar num estado seguro e
-        // coerente — o hardware já terá terminado de qualquer forma.
         estadoCofre = Estado.EstadoCofreAtual switch
         {
             EstadoCofre.AAbrir or EstadoCofre.AFechar => EstadoCofre.Fechado,
             var s => s
         };
-        // Garantir que o EstadoApp também fica coerente
         Estado.EstadoCofreAtual = estadoCofre;
+
+        // ── Deteção automática da porta COM do Arduino ──
+        aDetectarArduino = true;
+        StateHasChanged();
+
+        portaArduino = await Task.Run(() => ControladorHardware.DetectarPortaArduino());
+
+        aDetectarArduino = false;
+
+        if (portaArduino == null)
+            erroHardware = "Arduino não encontrado. O cofre físico não poderá ser operado.";
+
+        StateHasChanged();
     }
 
     // ── CORREÇÃO 2: bloqueia TODOS os botões durante qualquer transição ──
@@ -269,6 +305,8 @@
 
     private async Task Abrir()
     {
+        if (!arduinoConectado) return;
+
         SetEstado(EstadoCofre.AAbrir);
         erroHardware = null;
 
@@ -276,7 +314,7 @@
         {
             try
             {
-                var hw = new ControladorHardware(PORTA_COM);
+                var hw = new ControladorHardware(portaArduino!);
                 hw.Abrir();
                 hw.Desconectar();
             }
@@ -290,6 +328,8 @@
 
     private async Task Fechar()
     {
+        if (!arduinoConectado) return;
+
         SetEstado(EstadoCofre.AFechar);
         erroHardware = null;
 
@@ -297,7 +337,7 @@
         {
             try
             {
-                var hw = new ControladorHardware(PORTA_COM);
+                var hw = new ControladorHardware(portaArduino!);
                 hw.Fechar();
                 hw.Desconectar();
             }
@@ -1211,6 +1251,72 @@
             .hw-error button:hover {
                 opacity: 1;
             }
+
+    /* Indicador de estado do Arduino */
+    .hw-status {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border-radius: 8px;
+        font-size: 12px;
+        font-weight: 500;
+        margin-bottom: 8px;
+    }
+
+    .hw-status--ok {
+        background: var(--green-bg, #f0fdf4);
+        color: var(--green, #16a34a);
+        border: 1px solid var(--green-br, #bbf7d0);
+    }
+
+    .hw-status--offline {
+        background: var(--red-bg);
+        color: var(--red);
+        border: 1px solid var(--red-br);
+    }
+
+    .hw-status--searching {
+        background: var(--surface2);
+        color: var(--muted);
+        border: 1px solid var(--border);
+    }
+
+    .hw-status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        flex-shrink: 0;
+    }
+
+    .hw-status--ok .hw-status-dot {
+        background: #16a34a;
+    }
+
+    .hw-status--offline .hw-status-dot {
+        background: var(--red);
+    }
+
+    .hw-status--searching .hw-status-dot {
+        background: var(--muted);
+    }
+
+    @@keyframes pulse-dot {
+        0%, 100% {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        50% {
+            opacity: 0.4;
+            transform: scale(0.7);
+        }
+    }
+
+    .hw-status-dot--pulse {
+        animation: pulse-dot 1s ease-in-out infinite;
+    }
 
     .btn-safe {
         width: 100%;
