@@ -26,6 +26,22 @@ namespace PapAtualizacaoBeleza
         private string _caminhoAppData;
         private string _connectionStringAppData;
 
+        // ── Pasta segura em %APPDATA%\VaultFace ──
+        // Fica em C:\Users\<user>\AppData\Roaming\VaultFace
+        // Não é apagada ao remover o executável e requer permissões de utilizador para aceder.
+        private static string PastaVaultFace
+        {
+            get
+            {
+                string pasta = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "VaultFace"
+                );
+                Directory.CreateDirectory(pasta); // cria se não existir, não faz nada se já existir
+                return pasta;
+            }
+        }
+
         private static readonly byte[] chaveFixa = Convert.FromBase64String("+TOOq7NDcmzw6aU77P6DqujYd228n71xLKslYE4u6vI=");
         private static readonly byte[] ivFixa = Convert.FromBase64String("Z0JGlkJBxWPMU0EoXhCvag==");
 
@@ -35,8 +51,7 @@ namespace PapAtualizacaoBeleza
         }
         public void IniciarBanco()
         {
-            string pastaApp = AppDomain.CurrentDomain.BaseDirectory;
-            _caminhoAppData = Path.Combine(pastaApp, "AppData.mdf");
+            _caminhoAppData = Path.Combine(PastaVaultFace, "AppData.mdf");
             _connectionStringAppData = $@"Data Source=(LocalDB)\MSSQLLocalDB;
                                         AttachDbFilename={_caminhoAppData};
                                         Integrated Security=True;";
@@ -188,8 +203,7 @@ namespace PapAtualizacaoBeleza
 
             if (ultimoDbId.HasValue)
             {
-                string pastaApp = AppDomain.CurrentDomain.BaseDirectory;
-                string caminhoBanco = Path.Combine(pastaApp, nomeUltimoDb + ".mdf");
+                string caminhoBanco = Path.Combine(PastaVaultFace, nomeUltimoDb + ".mdf");
 
                 if (File.Exists(caminhoBanco))
                 {
@@ -208,9 +222,8 @@ namespace PapAtualizacaoBeleza
 
         private void CriarBancoDinamico()
         {
-            string pastaApp = AppDomain.CurrentDomain.BaseDirectory;
             string nomeBanco = "Rostos_" + Guid.NewGuid().ToString("N");
-            _caminhoBancoAtual = Path.Combine(pastaApp, nomeBanco + ".mdf");
+            _caminhoBancoAtual = Path.Combine(PastaVaultFace, nomeBanco + ".mdf");
             _connectionStringAtual = $@"Data Source=(LocalDB)\MSSQLLocalDB;
                                              AttachDbFilename={_caminhoBancoAtual};
                                              Integrated Security=True;";
