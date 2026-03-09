@@ -1,5 +1,6 @@
 ﻿@page "/UserLogado"
 @layout EmptyLayout
+@implements IDisposable
 @inject NavigationManager Navigation
 @inject EstadoApp Estado
 @inject TemaService Tema
@@ -151,22 +152,46 @@
                 @if (aDetectarArduino)
                 {
                     <div class="hw-status hw-status--searching">
-                        <div class="hw-status-dot hw-status-dot--pulse"></div>
-                        <span>A procurar Arduino...</span>
+                        <div class="hw-search-anim">
+                            <svg class="hw-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="22" height="22">
+                                <rect x="2" y="7" width="20" height="14" rx="2" />
+                                <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+                                <line x1="12" y1="12" x2="12" y2="12.01" />
+                            </svg>
+                            <div class="hw-search-ring hw-search-ring--1"></div>
+                            <div class="hw-search-ring hw-search-ring--2"></div>
+                        </div>
+                        <span class="hw-status-label">A procurar Arduino<span class="hw-dots"><span>.</span><span>.</span><span>.</span></span></span>
                     </div>
                 }
                 else if (arduinoConectado)
                 {
                     <div class="hw-status hw-status--ok">
-                        <div class="hw-status-dot"></div>
-                        <span>Arduino ligado em @portaArduino</span>
+                        <div class="hw-status-dot hw-status-dot--ok"></div>
+                        <span>Arduino ligado · <strong>@portaArduino</strong></span>
                     </div>
                 }
                 else
                 {
                     <div class="hw-status hw-status--offline">
-                        <div class="hw-status-dot"></div>
-                        <span>Arduino não encontrado</span>
+                        <div class="hw-offline-anim">
+                            <svg class="hw-offline-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="22" height="22">
+                                <rect x="2" y="7" width="20" height="14" rx="2" />
+                                <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+                                <line x1="1" y1="1" x2="23" y2="23" stroke-width="2" />
+                            </svg>
+                        </div>
+                        <div class="hw-offline-text">
+                            <span class="hw-offline-title">Arduino não encontrado</span>
+                            <span class="hw-offline-sub">Verifica o cabo USB e clica em reconectar</span>
+                        </div>
+                        <button class="btn-retry" @onclick="TentarNovamente" title="Tentar novamente">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" width="15" height="15">
+                                <polyline points="23 4 23 10 17 10" />
+                                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                            </svg>
+                            Reconectar
+                        </button>
                     </div>
                 }
 
@@ -257,6 +282,14 @@
     private bool arduinoConectado => portaArduino != null;
     private bool aDetectarArduino = false;
 
+    // Instância persistente do hardware — mantida enquanto o cofre está aberto
+    // para que o heartbeat continue a ser enviado ao Arduino
+    private ControladorHardware? _hw = null;
+
+    // Timer de monitorização da ligação — verifica a cada 3s se o Arduino ainda responde
+    private Timer? _monitorTimer = null;
+    private const int MONITOR_INTERVALO_MS = 3000;
+
     protected override async Task OnInitializedAsync()
     {
         if (Estado.UsuarioAtual == null)
@@ -283,6 +316,9 @@
 
         if (portaArduino == null)
             erroHardware = "Arduino não encontrado. O cofre físico não poderá ser operado.";
+
+        // Inicia monitorização contínua da ligação
+        IniciarMonitorLigacao();
 
         StateHasChanged();
     }
@@ -314,11 +350,16 @@
         {
             try
             {
-                var hw = new ControladorHardware(portaArduino!);
-                hw.Abrir();
-                hw.Desconectar();
+                // Cria instância persistente — mantida aberta para enviar heartbeats
+                _hw = new ControladorHardware(portaArduino!);
+                _hw.Abrir(); // envia 'A' e inicia o timer de heartbeat internamente
             }
-            catch (Exception ex) { erroHardware = $"Hardware: {ex.Message}"; }
+            catch (Exception ex)
+            {
+                erroHardware = $"Hardware: {ex.Message}";
+                _hw?.Dispose();
+                _hw = null;
+            }
         });
 
         await Task.Delay(DURACAO_MOTOR_MS);
@@ -337,9 +378,19 @@
         {
             try
             {
-                var hw = new ControladorHardware(portaArduino!);
-                hw.Fechar();
-                hw.Desconectar();
+                if (_hw != null)
+                {
+                    // Para o heartbeat e envia 'F' — tudo dentro do Fechar()
+                    _hw.Fechar();
+                    _hw.Dispose();
+                    _hw = null;
+                }
+                else
+                {
+                    // Fallback: se por algum motivo não há instância ativa, cria uma temporária
+                    using var hwTemp = new ControladorHardware(portaArduino!);
+                    hwTemp.Fechar();
+                }
             }
             catch (Exception ex) { erroHardware = $"Hardware: {ex.Message}"; }
         });
@@ -376,6 +427,75 @@
         Estado.Logout();
         Estado.EstadoCofreAtual = EstadoCofre.Fechado;
         Navigation.NavigateTo("/", replace: true);
+    }
+
+    // ── Monitorização contínua da ligação ────────────────────────────────────
+    // Corre a cada 3s e verifica se o Arduino ainda responde ao ping 'P'.
+    // Se o cabo for desligado durante o uso, a UI bloqueia imediatamente.
+    private void IniciarMonitorLigacao()
+    {
+        _monitorTimer?.Dispose();
+        _monitorTimer = new Timer(async _ =>
+        {
+            // Se o cofre está em transição ou o heartbeat já trata da ligação, não interferir
+            if (BloqueadoPorTransicao() || estadoCofre == EstadoCofre.Aberto) return;
+
+            bool estaLigado = await Task.Run(() =>
+            {
+                // Se já havia uma porta detetada, testa apenas essa — mais rápido
+                if (portaArduino != null)
+                    return ControladorHardware.PingPorta(portaArduino);
+
+                // Se não havia porta, tenta detetar de novo (cabo pode ter sido ligado)
+                string? novaPorta = ControladorHardware.DetectarPortaArduino();
+                if (novaPorta != null)
+                {
+                    portaArduino = novaPorta;
+                    return true;
+                }
+                return false;
+            });
+
+            bool mudou = estaLigado != arduinoConectado;
+
+            if (!estaLigado)
+                portaArduino = null;
+
+            if (mudou)
+            {
+                erroHardware = estaLigado ? null : null; // limpa erro antigo ao reconectar
+                await InvokeAsync(StateHasChanged);
+            }
+        },
+        state: null,
+        dueTime: MONITOR_INTERVALO_MS,
+        period: MONITOR_INTERVALO_MS);
+    }
+
+    // Botão "Tentar novamente" — faz nova deteção completa a pedido do utilizador
+    private async Task TentarNovamente()
+    {
+        aDetectarArduino = true;
+        erroHardware = null;
+        StateHasChanged();
+
+        portaArduino = await Task.Run(() => ControladorHardware.DetectarPortaArduino());
+
+        aDetectarArduino = false;
+
+        if (portaArduino == null)
+            erroHardware = "Arduino continua sem resposta. Verifica o cabo USB e tenta novamente.";
+
+        StateHasChanged();
+    }
+
+    // ── Limpeza ao destruir a página ─────────────────────────────────────────
+    public void Dispose()
+    {
+        _monitorTimer?.Dispose();
+        _monitorTimer = null;
+        _hw?.Dispose();
+        _hw = null;
     }
 
     private void IrParaAdmin()
@@ -1252,71 +1372,225 @@
                 opacity: 1;
             }
 
-    /* Indicador de estado do Arduino */
+    /* ── Estado do Arduino ────────────────────────────────────────────────── */
     .hw-status {
         width: 100%;
         display: flex;
         align-items: center;
-        gap: 8px;
-        padding: 8px 12px;
-        border-radius: 8px;
-        font-size: 12px;
-        font-weight: 500;
-        margin-bottom: 8px;
+        gap: 10px;
+        padding: 10px 14px;
+        border-radius: 10px;
+        font-size: 13px;
+        margin-bottom: 10px;
+        transition: all 0.3s ease;
     }
 
+    /* Ligado */
     .hw-status--ok {
         background: var(--green-bg, #f0fdf4);
         color: var(--green, #16a34a);
         border: 1px solid var(--green-br, #bbf7d0);
     }
 
-    .hw-status--offline {
-        background: var(--red-bg);
-        color: var(--red);
-        border: 1px solid var(--red-br);
+    .hw-status-dot--ok {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #16a34a;
+        flex-shrink: 0;
+        box-shadow: 0 0 0 3px #bbf7d0;
+        animation: dot-pulse-green 2s ease-in-out infinite;
     }
 
+    @@keyframes dot-pulse-green {
+        0%, 100% {
+            box-shadow: 0 0 0 3px #bbf7d0;
+        }
+
+        50% {
+            box-shadow: 0 0 0 6px #dcfce7;
+        }
+    }
+
+    /* A procurar */
     .hw-status--searching {
         background: var(--surface2);
         color: var(--muted);
         border: 1px solid var(--border);
+        gap: 14px;
     }
 
-    .hw-status-dot {
-        width: 8px;
-        height: 8px;
+    .hw-search-anim {
+        position: relative;
+        width: 32px;
+        height: 32px;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .hw-search-icon {
+        position: relative;
+        z-index: 2;
+        opacity: 0.6;
+    }
+
+    .hw-search-ring {
+        position: absolute;
         border-radius: 50%;
+        border: 1.5px solid currentColor;
+        opacity: 0;
+        animation: search-ripple 2s ease-out infinite;
+    }
+
+    .hw-search-ring--1 {
+        width: 28px;
+        height: 28px;
+        animation-delay: 0s;
+    }
+
+    .hw-search-ring--2 {
+        width: 42px;
+        height: 42px;
+        animation-delay: 0.6s;
+    }
+
+    @@keyframes search-ripple {
+        0% {
+            opacity: 0.5;
+            transform: scale(0.6);
+        }
+
+        100% {
+            opacity: 0;
+            transform: scale(1.4);
+        }
+    }
+
+    .hw-status-label {
+        font-weight: 500;
+    }
+
+    .hw-dots span {
+        animation: blink-dot 1.4s infinite;
+        opacity: 0;
+    }
+
+        .hw-dots span:nth-child(1) {
+            animation-delay: 0s;
+        }
+
+        .hw-dots span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .hw-dots span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+    @@keyframes blink-dot {
+        0%, 80%, 100% {
+            opacity: 0;
+        }
+
+        40% {
+            opacity: 1;
+        }
+    }
+
+    /* Desligado */
+    .hw-status--offline {
+        background: var(--red-bg);
+        color: var(--red);
+        border: 1px solid var(--red-br);
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .hw-offline-anim {
+        flex-shrink: 0;
+        animation: offline-shake 3s ease-in-out infinite;
+    }
+
+    @@keyframes offline-shake {
+        0%, 85%, 100% {
+            transform: translateX(0);
+        }
+
+        88% {
+            transform: translateX(-3px);
+        }
+
+        91% {
+            transform: translateX(3px);
+        }
+
+        94% {
+            transform: translateX(-2px);
+        }
+
+        97% {
+            transform: translateX(2px);
+        }
+    }
+
+    .hw-offline-icon {
+        opacity: 0.85;
+    }
+
+    .hw-offline-text {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        flex: 1;
+        min-width: 0;
+    }
+
+    .hw-offline-title {
+        font-weight: 600;
+        font-size: 13px;
+    }
+
+    .hw-offline-sub {
+        font-size: 11px;
+        opacity: 0.75;
+    }
+
+    .btn-retry {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        background: var(--red);
+        color: #fff;
+        border: none;
+        border-radius: 7px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: opacity 0.15s, transform 0.15s;
+        white-space: nowrap;
         flex-shrink: 0;
     }
 
-    .hw-status--ok .hw-status-dot {
-        background: #16a34a;
-    }
+        .btn-retry:hover {
+            opacity: 0.85;
+            transform: translateY(-1px);
+        }
 
-    .hw-status--offline .hw-status-dot {
-        background: var(--red);
-    }
-
-    .hw-status--searching .hw-status-dot {
-        background: var(--muted);
-    }
-
-    @@keyframes pulse-dot {
-        0%, 100% {
+        .btn-retry:active {
             opacity: 1;
-            transform: scale(1);
+            transform: translateY(0);
         }
 
-        50% {
-            opacity: 0.4;
-            transform: scale(0.7);
+        .btn-retry svg {
+            transition: transform 0.4s ease;
         }
-    }
 
-    .hw-status-dot--pulse {
-        animation: pulse-dot 1s ease-in-out infinite;
-    }
+        .btn-retry:hover svg {
+            transform: rotate(-45deg);
+        }
 
     .btn-safe {
         width: 100%;
