@@ -114,7 +114,15 @@
                         <div class="bolt bolt--br"></div>
 
                         <div class="vault-symbol">
-                            @if (estadoCofre == EstadoCofre.Aberto)
+                            @if (!arduinoConectado && !aDetectarArduino)
+                            {
+                                @* Sem hardware — ícone de desconexão com animação *@
+                                <svg class="vault-symbol-offline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" width="36" height="36">
+                                    <path d="M18.36 6.64a9 9 0 1 1-12.73 0" />
+                                    <line x1="12" y1="2" x2="12" y2="12" />
+                                </svg>
+                            }
+                            else if (estadoCofre == EstadoCofre.Aberto)
                             {
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" width="36" height="36">
                                     <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
@@ -346,13 +354,14 @@
         SetEstado(EstadoCofre.AAbrir);
         erroHardware = null;
 
+        bool sucesso = false;
         await Task.Run(() =>
         {
             try
             {
-                // Cria instância persistente — mantida aberta para enviar heartbeats
                 _hw = new ControladorHardware(portaArduino!);
-                _hw.Abrir(); // envia 'A' e inicia o timer de heartbeat internamente
+                _hw.Abrir();
+                sucesso = true;
             }
             catch (Exception ex)
             {
@@ -363,7 +372,8 @@
         });
 
         await Task.Delay(DURACAO_MOTOR_MS);
-        SetEstado(EstadoCofre.Aberto);
+        // Só avança para Aberto se o hardware respondeu — caso contrário volta a Fechado
+        SetEstado(sucesso ? EstadoCofre.Aberto : EstadoCofre.Fechado);
         await InvokeAsync(StateHasChanged);
     }
 
@@ -463,7 +473,10 @@
 
             if (mudou)
             {
-                erroHardware = estaLigado ? null : null; // limpa erro antigo ao reconectar
+                // Quando desliga: mostra aviso. Quando reconecta: limpa o aviso.
+                erroHardware = estaLigado
+                    ? null
+                    : "Ligação ao Arduino perdida. O cofre físico foi bloqueado.";
                 await InvokeAsync(StateHasChanged);
             }
         },
@@ -486,6 +499,9 @@
         if (portaArduino == null)
             erroHardware = "Arduino continua sem resposta. Verifica o cabo USB e tenta novamente.";
 
+        // Reinicia o monitor — estava parado desde que a ligação foi perdida
+        IniciarMonitorLigacao();
+
         StateHasChanged();
     }
 
@@ -505,21 +521,29 @@
     }
 
     // ── CSS helpers ──
-    private string SafePanelClass() => estadoCofre switch
+    private string SafePanelClass()
     {
-        EstadoCofre.Aberto => "safe-panel--open",
-        EstadoCofre.AAbrir => "safe-panel--opening",
-        EstadoCofre.AFechar => "safe-panel--closing",
-        _ => ""
-    };
+        if (!arduinoConectado && !aDetectarArduino) return "safe-panel--offline";
+        return estadoCofre switch
+        {
+            EstadoCofre.Aberto => "safe-panel--open",
+            EstadoCofre.AAbrir => "safe-panel--opening",
+            EstadoCofre.AFechar => "safe-panel--closing",
+            _ => ""
+        };
+    }
 
-    private string VaultDoorClass() => estadoCofre switch
+    private string VaultDoorClass()
     {
-        EstadoCofre.AAbrir => "vault-door--spinning-open",
-        EstadoCofre.AFechar => "vault-door--spinning-close",
-        EstadoCofre.Aberto => "vault-door--open",
-        _ => ""
-    };
+        if (!arduinoConectado && !aDetectarArduino) return "vault-door--offline";
+        return estadoCofre switch
+        {
+            EstadoCofre.AAbrir => "vault-door--spinning-open",
+            EstadoCofre.AFechar => "vault-door--spinning-close",
+            EstadoCofre.Aberto => "vault-door--open",
+            _ => ""
+        };
+    }
 
     private string VaultHandleClass() => estadoCofre switch
     {
@@ -528,12 +552,16 @@
         _ => ""
     };
 
-    private string SafeStatusClass() => estadoCofre switch
+    private string SafeStatusClass()
     {
-        EstadoCofre.Aberto => "status-open",
-        EstadoCofre.AAbrir or EstadoCofre.AFechar => "status-transitioning",
-        _ => "status-closed"
-    };
+        if (!arduinoConectado && !aDetectarArduino) return "status-offline";
+        return estadoCofre switch
+        {
+            EstadoCofre.Aberto => "status-open",
+            EstadoCofre.AAbrir or EstadoCofre.AFechar => "status-transitioning",
+            _ => "status-closed"
+        };
+    }
 
     private string BtnSafeClass() => estadoCofre switch
     {
@@ -542,13 +570,18 @@
         _ => "btn-safe--unlock"
     };
 
-    private string TextoEstado() => estadoCofre switch
+    private string TextoEstado()
     {
-        EstadoCofre.AAbrir => "A abrir...",
-        EstadoCofre.AFechar => "A fechar...",
-        EstadoCofre.Aberto => "Desbloqueado",
-        _ => "Bloqueado"
-    };
+        if (aDetectarArduino) return "A verificar...";
+        if (!arduinoConectado) return "Sem ligação";
+        return estadoCofre switch
+        {
+            EstadoCofre.AAbrir => "A abrir...",
+            EstadoCofre.AFechar => "A fechar...",
+            EstadoCofre.Aberto => "Desbloqueado",
+            _ => "Bloqueado"
+        };
+    }
 
     private string ObterIniciais(string? nome)
     {
@@ -697,6 +730,14 @@
         .dark .safe-panel--opening, .dark .safe-panel--closing {
             box-shadow: 0 0 0 2px rgba(251,191,36,0.3), 0 0 40px rgba(251,191,36,0.06), var(--shadow);
         }
+
+        .dark .safe-panel--offline {
+            box-shadow: 0 0 0 2px rgba(248,113,113,0.3), 0 0 40px rgba(248,113,113,0.06), var(--shadow);
+        }
+
+            .dark .safe-panel--offline .vault-center {
+                box-shadow: 0 0 0 3px rgba(248,113,113,0.2), 0 2px 12px rgba(0,0,0,0.2);
+            }
 
         .dark .ring-tick--major {
             background: var(--dim);
@@ -1045,6 +1086,78 @@
     .safe-panel--closing {
         box-shadow: 0 0 0 2px rgba(217,119,6,0.2), var(--shadow);
         border-color: var(--amber-br) !important;
+    }
+
+    /* Estado offline — hardware não encontrado */
+    .safe-panel--offline {
+        box-shadow: 0 0 0 2px rgba(220,38,38,0.2), var(--shadow);
+        border-color: var(--red-br) !important;
+    }
+
+        .safe-panel--offline .vault-ring--outer {
+            border-color: var(--red-br);
+            background: var(--red-bg);
+        }
+
+        .safe-panel--offline .vault-ring--mid {
+            border-color: var(--red-br);
+            opacity: 0.5;
+        }
+
+        .safe-panel--offline .ring-tick--major {
+            background: var(--red-br);
+            opacity: 0.7;
+        }
+
+        .safe-panel--offline .ring-tick--minor {
+            background: var(--red-br);
+            opacity: 0.3;
+        }
+
+        .safe-panel--offline .vault-center {
+            border-color: var(--red);
+            box-shadow: 0 0 0 3px rgba(220,38,38,0.12), 0 2px 12px rgba(0,0,0,0.08);
+        }
+
+        .safe-panel--offline .bolt {
+            background: var(--red-br);
+        }
+
+    .vault-door--offline {
+        animation: offline-slow-pulse 3s ease-in-out infinite;
+    }
+
+    @@keyframes offline-slow-pulse {
+        0%, 100% {
+            opacity: 1;
+        }
+
+        50% {
+            opacity: 0.55;
+        }
+    }
+
+    /* Ícone de desconexão no centro do cofre */
+    .vault-symbol-offline {
+        color: var(--red);
+        animation: offline-icon-pulse 2.5s ease-in-out infinite;
+    }
+
+    @@keyframes offline-icon-pulse {
+        0%, 100% {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        50% {
+            opacity: 0.5;
+            transform: scale(0.9);
+        }
+    }
+
+    /* Texto "Sem ligação" */
+    .status-offline {
+        color: var(--red) !important;
     }
 
     .vault-door {

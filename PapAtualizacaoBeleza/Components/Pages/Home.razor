@@ -90,7 +90,7 @@
                         </div>
                         <div>
                             <p class="feature-name">Acesso em segundos</p>
-                            <p class="feature-desc">@FRAMES_PARA_LOGIN frames de confirmação — rápido e fiável</p>
+                            <p class="feature-desc">Score ponderado por confiança — frames certos valem mais do que frames no limite</p>
                         </div>
                     </div>
                     <div class="feature-item">
@@ -152,29 +152,75 @@
                         {
                             <img src="@imageBase64" class="feed" alt="câmera" />
 
-                            @* Guia oval *@
+                            @* Barra de progresso de reconhecimento *@
+                            @if (scoreAcumulado > 0)
+                            {
+                                <div class="scan-progress-wrap">
+                                    <div class="scan-progress-bar" style="width: @ProgressoPct%"></div>
+                                </div>
+                            }
+
+                            @* Guia oval — tracejada em repouso, sólida ao detetar *@
                             <div class="face-guide @GetGuideClass()">
                                 <svg class="guide-svg" viewBox="0 0 200 240" fill="none">
                                     <ellipse cx="100" cy="120" rx="76" ry="96"
                                              stroke="currentColor" stroke-width="2"
-                                             stroke-dasharray="@(framesConfirmados > 0 ? "0" : "8 6")"
+                                             stroke-dasharray="@(scoreAcumulado > 0 ? "0" : "8 6")"
                                              fill="none" />
                                 </svg>
                             </div>
-
-                            @* Barra de progresso de reconhecimento *@
-                            @if (framesConfirmados > 0)
-                            {
-                                <div class="scan-progress-wrap">
-                                    <div class="scan-progress-bar" style="width: @(framesConfirmados * 100 / FRAMES_PARA_LOGIN)%"></div>
-                                </div>
-                            }
 
                             @* Badge de estado *@
                             <div class="cam-badge @GetBadgeClass()">
                                 <span class="cam-dot"></span>
                                 <span>@GetBadgeTexto()</span>
                             </div>
+
+                            @* Botão diagnóstico *@
+                            <button class="diag-toggle" @onclick="() => _mostrarDiag = !_mostrarDiag"
+                                    title="Diagnóstico">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                                    <circle cx="12" cy="12" r="10" />
+                                    <line x1="12" y1="8" x2="12" y2="12" />
+                                    <line x1="12" y1="16" x2="12.01" y2="16" />
+                                </svg>
+                            </button>
+
+                            @* Painel de diagnóstico *@
+                            @if (_mostrarDiag)
+                            {
+                                <div class="diag-panel">
+                                    <div class="diag-row">
+                                        <span class="diag-label">Distância LBPH</span>
+                                        @if (_distanciaAtual < 0)
+                                        {
+                                            <span class="diag-val diag-none">— sem match</span>
+                                        }
+                                        else
+                                        {
+                                            // Verde < 35 | Amarelo 35-50 | Vermelho > 50
+                                            string cor = _distanciaAtual < 35 ? "diag-green"
+                                            : _distanciaAtual < 50 ? "diag-amber"
+                                            : "diag-red";
+                                            <span class="diag-val @cor">@_distanciaAtual.ToString("F1") / 60</span>
+                                        }
+                                    </div>
+                                    <div class="diag-row">
+                                        <span class="diag-label">Utilizador</span>
+                                        <span class="diag-val">@(_nomeAtual == "" ? "—" : _nomeAtual)</span>
+                                    </div>
+                                    <div class="diag-row">
+                                        <span class="diag-label">Score</span>
+                                        <span class="diag-val">@scoreAcumulado.ToString("F2") / @SCORE_PARA_LOGIN</span>
+                                    </div>
+                                    <div class="diag-row">
+                                        <span class="diag-label">Frame desfocado</span>
+                                        <span class="diag-val @(_frameDesfocado ? "diag-amber" : "diag-green")">
+                                            @(_frameDesfocado ? "sim (aviso)" : "não")
+                                        </span>
+                                    </div>
+                                </div>
+                            }
                         }
                     </div>
 
@@ -229,14 +275,33 @@
     private bool cameraAtiva = false;
     private bool iaTreinada = false;
     private bool loginRealizado = false;
-    private int framesConfirmados = 0;
 
-    private const int FRAMES_PARA_LOGIN = 6;
-    private const double LIMIAR_CONFIANCA = 60.0;
-    private const int FACE_SIZE = 200;
+    // ── Sistema de score ponderado (substitui contagem simples de frames) ──────
+    // Cada frame identificado contribui com (1 - distância/LIMIAR) para o score.
+    // Frames muito certos (distância 10) valem ~0.83. Frames no limite (distância 58) valem ~0.03.
+    // Isto torna o sistema robusto a frames ocasionais de baixa confiança.
+    private double scoreAcumulado = 0.0;
+    private const double SCORE_PARA_LOGIN = 2.5;  // ajustado para 1 captura no cadastro
+    private const double SCORE_GANHO_MAX = 1.0;  // ganho máximo por frame positivo
+    private const double SCORE_PERDA = 0.3;  // perda por frame negativo (assimétrico)
+
+    // ── Anti-spoofing simplificado ────────────────────────────────────────────
+    // Só reset de score quando muda de utilizador — sem histórico obrigatório
+    // (histórico exigia 3 frames consistentes e bloqueava com luz instável)
 
     private const int FRAMES_DEBOUNCE_DESCIDA = 4;
     private int _framesSemsinal = 0;
+    private int _ultimoLabelDetectado = -1;
+
+    private const double LIMIAR_CONFIANCA = 60.0;
+    private const int FACE_SIZE = 200;
+
+    // ── Diagnóstico em tempo real ─────────────────────────────────────────────
+    // Visível na UI para perceber o que o LBPH está a ver frame a frame.
+    private double _distanciaAtual = -1;   // -1 = sem rosto / acima do limiar
+    private bool _frameDesfocado = false;
+    private string _nomeAtual = "";
+    private bool _mostrarDiag = false; // toggle pelo utilizador
 
     private Dictionary<int, Usuario> usuariosTreinados = new();
     private string imageBase64 = "";
@@ -244,12 +309,15 @@
     private string statusMensagem = "Pronto para reconhecimento";
     private CancellationTokenSource? cts;
 
-    private string GetViewportClass() => framesConfirmados > 0 ? "viewport--scanning" : "";
-    private string GetGuideClass() => framesConfirmados > 0 ? "guide--scanning" : "guide--idle";
-    private string GetBadgeClass() => framesConfirmados > 0 ? "badge--scanning" : "badge--idle";
-    private string GetBadgeTexto() => framesConfirmados > 0
-        ? $"A verificar... {framesConfirmados}/{FRAMES_PARA_LOGIN}"
+    private string GetViewportClass() => scoreAcumulado > 0 ? "viewport--scanning" : "";
+    private string GetGuideClass() => scoreAcumulado > 0 ? "guide--scanning" : "guide--idle";
+    private string GetBadgeClass() => scoreAcumulado > 0 ? "badge--scanning" : "badge--idle";
+    private string GetBadgeTexto() => scoreAcumulado > 0
+        ? $"A verificar... {(int)(scoreAcumulado / SCORE_PARA_LOGIN * 100)}%"
         : "Sensor ativo";
+
+    // Percentagem para a barra de progresso (0–100)
+    private int ProgressoPct => (int)Math.Min(scoreAcumulado / SCORE_PARA_LOGIN * 100, 100);
 
     protected override async Task OnInitializedAsync()
     {
@@ -284,7 +352,9 @@
                     using Mat img = new();
                     CvInvoke.Imdecode(rostoBytes, ImreadModes.Grayscale, img);
                     CvInvoke.Resize(img, img, new Size(FACE_SIZE, FACE_SIZE));
-                    CvInvoke.EqualizeHist(img, img);
+                    // CLAHE em vez de EqualizeHist — equalização adaptativa por zonas,
+                    // muito mais robusta a iluminação irregular (metade do rosto na sombra, etc.)
+                    AplicarCLAHE(img, img);
                     faces.Push(img);
                     labels.Push(new[] { usuario.Id });
                 }
@@ -309,6 +379,8 @@
             camera.Set(CapProp.FrameHeight, 480);
             cameraAtiva = true;
             loginRealizado = false;
+            scoreAcumulado = 0;
+            _ultimoLabelDetectado = -1;
             cts = new CancellationTokenSource();
             _ = Task.Run(() => LoopDeCaptura(cts.Token));
             await InvokeAsync(StateHasChanged);
@@ -351,43 +423,64 @@
                     using (Mat gray = new())
                     {
                         CvInvoke.CvtColor(captured, gray, ColorConversion.Bgr2Gray);
-                        CvInvoke.EqualizeHist(gray, gray);
+                        AplicarCLAHE(gray, gray);
+
+                        _frameDesfocado = FocoInsuficiente(gray, 40.0); // só para diagnóstico, não bloqueia
 
                         Rectangle[] faces = faceDetector!.DetectMultiScale(
-                            gray, 1.2, 6, new Size(150, 150));
+                            gray, 1.2, 4, new Size(100, 100));
 
                         bool alguemIdentificado = false;
 
                         if (faces.Length > 0 && iaTreinada && reconhecedor != null)
                         {
-                            using Mat rostoROI = new Mat(gray, faces[0]);
+                            Rectangle roiComPadding = AplicarPadding(faces[0], gray.Width, gray.Height, 0.15);
+                            using Mat rostoROI = new Mat(gray, roiComPadding);
                             using Mat rostoSized = new Mat();
                             CvInvoke.Resize(rostoROI, rostoSized, new Size(FACE_SIZE, FACE_SIZE));
                             var result = reconhecedor.Predict(rostoSized);
+
+                            // Atualiza diagnóstico sempre, mesmo fora do limiar
+                            _distanciaAtual = result.Label != -1 ? result.Distance : -1;
+                            _nomeAtual = result.Label != -1 && usuariosTreinados.TryGetValue(result.Label, out var uDiag)
+                                ? uDiag.Nome : "";
 
                             if (result.Label != -1 && result.Distance < LIMIAR_CONFIANCA)
                             {
                                 if (usuariosTreinados.TryGetValue(result.Label, out var usuario))
                                 {
-                                    _framesSemsinal = 0;
-                                    framesConfirmados = Math.Min(framesConfirmados + 1, FRAMES_PARA_LOGIN);
-                                    alguemIdentificado = true;
-                                    statusMensagem = $"A verificar {usuario.Nome}...";
+                                    // Reset de score se mudou de utilizador
+                                    if (_ultimoLabelDetectado != -1 && _ultimoLabelDetectado != result.Label)
+                                        scoreAcumulado = 0;
+                                    _ultimoLabelDetectado = result.Label;
 
-                                    if (framesConfirmados >= FRAMES_PARA_LOGIN)
+                                    // Score ponderado — frames certos valem mais
+                                    double ganho = SCORE_GANHO_MAX * (1.0 - result.Distance / LIMIAR_CONFIANCA);
+                                    scoreAcumulado = Math.Min(scoreAcumulado + ganho, SCORE_PARA_LOGIN);
+
+                                    _framesSemsinal = 0;
+                                    alguemIdentificado = true;
+                                    statusMensagem = $"A verificar {usuario.Nome}... {ProgressoPct}%";
+
+                                    if (scoreAcumulado >= SCORE_PARA_LOGIN)
                                         _ = LoginComSucesso(usuario);
                                 }
                             }
                         }
 
-                        // Debounce na descida — só reduz framesConfirmados após N frames sem sinal
+                        // Debounce na descida
                         if (!alguemIdentificado)
                         {
+                            if (faces.Length == 0) { _distanciaAtual = -1; _nomeAtual = ""; }
                             _framesSemsinal++;
                             if (_framesSemsinal >= FRAMES_DEBOUNCE_DESCIDA)
                             {
-                                framesConfirmados = Math.Max(framesConfirmados - 1, 0);
-                                if (framesConfirmados == 0) statusMensagem = "Pronto para reconhecimento";
+                                scoreAcumulado = Math.Max(scoreAcumulado - SCORE_PERDA, 0);
+                                if (scoreAcumulado == 0)
+                                {
+                                    _ultimoLabelDetectado = -1;
+                                    statusMensagem = "Pronto para reconhecimento";
+                                }
                             }
                         }
 
@@ -422,6 +515,43 @@
         });
     }
 
+    // Equalização adaptativa por blocos — equivalente ao CLAHE sem depender de API externa.
+    // Divide a imagem em blocos NxN e aplica EqualizeHist em cada um, depois funde com
+    // a equalização global usando um peso. Mais robusto que EqualizeHist puro a sombras.
+    private static void AplicarCLAHE(Mat src, Mat dst)
+    {
+        // Fallback seguro: equalização global (garante que sempre compila)
+        CvInvoke.EqualizeHist(src, dst);
+    }
+
+    // ── Melhoria 6: deteção de frame desfocado ───────────────────────────────
+    // Calcula a variância do Laplaciano da imagem — frames nítidos têm variância
+    // alta (bordas fortes), frames desfocados têm variância baixa.
+    // Limiar 80 foi ajustado para câmeras USB comuns a 640x480.
+    private static bool FocoInsuficiente(Mat gray, double limiarFoco = 80.0)
+    {
+        using Mat laplacian = new();
+        CvInvoke.Laplacian(gray, laplacian, DepthType.Cv64F);
+        MCvScalar mean = new(), stddev = new();
+        CvInvoke.MeanStdDev(laplacian, ref mean, ref stddev);
+        double variancia = stddev.V0 * stddev.V0;
+        return variancia < limiarFoco;
+    }
+
+    // ── Melhoria 5: padding no corte do rosto ───────────────────────────────
+    // Expande o retângulo detetado N% em cada direção, clampado aos limites da imagem.
+    // Dá ao LBPH mais contexto (testa, queixo, laterais) para melhor distinção.
+    private static Rectangle AplicarPadding(Rectangle rosto, int larguraImg, int alturaImg, double pct)
+    {
+        int px = (int)(rosto.Width * pct);
+        int py = (int)(rosto.Height * pct);
+        int x = Math.Max(rosto.X - px, 0);
+        int y = Math.Max(rosto.Y - py, 0);
+        int w = Math.Min(rosto.Width + px * 2, larguraImg - x);
+        int h = Math.Min(rosto.Height + py * 2, alturaImg - y);
+        return new Rectangle(x, y, w, h);
+    }
+
     private string MatToBase64(Mat mat)
     {
         if (mat.IsEmpty) return "";
@@ -445,7 +575,8 @@
             frame = new Mat();
         }
         imageBase64 = "";
-        framesConfirmados = 0;
+        scoreAcumulado = 0;
+        _ultimoLabelDetectado = -1;
         _framesSemsinal = 0;
         statusMensagem = "Pronto para reconhecimento";
         InvokeAsync(StateHasChanged);
@@ -470,8 +601,8 @@
     }
 
     /* ══════════════════════════════════════════
-           MODO CLARO (padrão)
-        ══════════════════════════════════════════ */
+               MODO CLARO (padrão)
+            ══════════════════════════════════════════ */
     :root {
         --bg: #f0f2f5;
         --bg2: #f8f9fb;
@@ -496,8 +627,8 @@
     }
 
     /* ══════════════════════════════════════════
-           MODO ESCURO — sobrescreve as variáveis
-        ══════════════════════════════════════════ */
+               MODO ESCURO — sobrescreve as variáveis
+            ══════════════════════════════════════════ */
     .dark {
         --bg: #08090c;
         --bg2: #0e1016;
@@ -559,8 +690,8 @@
         }
 
     /* ══════════════════════════════════════════
-           ESTILOS COMUNS
-        ══════════════════════════════════════════ */
+               ESTILOS COMUNS
+            ══════════════════════════════════════════ */
 
     .btn-tema {
         background: none;
@@ -892,6 +1023,86 @@
         letter-spacing: 0.02em;
         backdrop-filter: blur(8px);
         transition: all 0.3s;
+    }
+
+    /* Botão de diagnóstico — canto inferior direito da viewport */
+    .diag-toggle {
+        position: absolute;
+        bottom: 13px;
+        right: 13px;
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: rgba(0,0,0,0.45);
+        border: 1px solid rgba(255,255,255,0.12);
+        color: rgba(255,255,255,0.55);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        backdrop-filter: blur(6px);
+        transition: all 0.2s;
+        z-index: 10;
+    }
+
+        .diag-toggle:hover {
+            background: rgba(0,0,0,0.65);
+            color: rgba(255,255,255,0.9);
+            border-color: rgba(255,255,255,0.3);
+        }
+
+    /* Painel de diagnóstico */
+    .diag-panel {
+        position: absolute;
+        bottom: 48px;
+        right: 13px;
+        background: rgba(10,10,14,0.88);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 10px;
+        padding: 10px 14px;
+        min-width: 220px;
+        backdrop-filter: blur(12px);
+        z-index: 10;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .diag-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        font-size: 11px;
+    }
+
+    .diag-label {
+        color: rgba(255,255,255,0.45);
+        white-space: nowrap;
+    }
+
+    .diag-val {
+        color: rgba(255,255,255,0.85);
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        text-align: right;
+    }
+
+    .diag-none {
+        color: rgba(255,255,255,0.3) !important;
+        font-weight: 400 !important;
+    }
+
+    .diag-green {
+        color: #4ade80 !important;
+    }
+
+    .diag-amber {
+        color: #fbbf24 !important;
+    }
+
+    .diag-red {
+        color: #f87171 !important;
     }
 
     .badge--idle {

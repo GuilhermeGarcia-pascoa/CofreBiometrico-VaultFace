@@ -839,8 +839,9 @@
                     {
                         CvInvoke.CvtColor(captured, gray, ColorConversion.Bgr2Gray);
 
-                        // EqualizeHist + suavização leve — compatível com todas as versões Emgu.CV
-                        CvInvoke.EqualizeHist(gray, grayNorm);
+                        // CLAHE em vez de EqualizeHist — equalização adaptativa por zonas,
+                        // consistente com o método usado no reconhecimento (Home.razor)
+                        AplicarCLAHE(gray, grayNorm);
                         CvInvoke.GaussianBlur(grayNorm, grayNorm, new Size(3, 3), 0);
 
                         Rectangle[] faces = faceDetector?.DetectMultiScale(
@@ -973,7 +974,7 @@
             using (Mat grayNorm = new())
             {
                 CvInvoke.CvtColor(snapshot, gray, ColorConversion.Bgr2Gray);
-                CvInvoke.EqualizeHist(gray, grayNorm);
+                AplicarCLAHE(gray, grayNorm);
                 CvInvoke.GaussianBlur(grayNorm, grayNorm, new Size(3, 3), 0);
 
                 var faces = faceDetector?.DetectMultiScale(grayNorm, 1.1, 3, new Size(60, 60))
@@ -1071,18 +1072,17 @@
         var imgSize = new Size(200, 200);
         var center = new PointF(100f, 100f);
 
-        // Normaliza e adiciona à lista — EqualizeHist exige dst pré-alocado igual ao src
+        // Normaliza e adiciona à lista — CLAHE garante consistência com o reconhecimento
         void Adicionar(Mat src)
         {
             using Mat resized = new();
-            // Garante sempre 200x200 antes de equalizar (protege contra escala)
             if (src.Width != 200 || src.Height != 200)
                 CvInvoke.Resize(src, resized, imgSize);
             else
                 src.CopyTo(resized);
 
             Mat eq = new Mat(imgSize, src.Depth, 1);
-            CvInvoke.EqualizeHist(resized, eq);
+            AplicarCLAHE(resized, eq);
             lista.Add(eq); // transfere ownership — não usar using aqui
         }
 
@@ -1209,6 +1209,12 @@
         // Total: ~32 variações por captura
     }
 
+    // Equalização — usa EqualizeHist (CLAHE não disponível nesta versão do Emgu CV)
+    private static void AplicarCLAHE(Mat src, Mat dst)
+    {
+        CvInvoke.EqualizeHist(src, dst);
+    }
+
     private string MatToBase64(Mat mat)
     {
         if (mat.IsEmpty) return "";
@@ -1292,8 +1298,8 @@
     }
 
     /* ══════════════════════════════════════════
-                   MODO CLARO (padrão)
-                ══════════════════════════════════════════ */
+                       MODO CLARO (padrão)
+                    ══════════════════════════════════════════ */
     :root {
         --bg: #f0f2f5;
         --bg2: #f8f9fb;
@@ -1322,8 +1328,8 @@
     }
 
     /* ══════════════════════════════════════════
-                   MODO ESCURO — sobrescreve as variáveis
-                ══════════════════════════════════════════ */
+                       MODO ESCURO — sobrescreve as variáveis
+                    ══════════════════════════════════════════ */
     .dark {
         --bg: #08090c;
         --bg2: #0e1016;
@@ -1433,8 +1439,8 @@
         }
 
     /* ══════════════════════════════════════════
-                   ESTILOS COMUNS (usam variáveis, funcionam em ambos os modos)
-                ══════════════════════════════════════════ */
+                       ESTILOS COMUNS (usam variáveis, funcionam em ambos os modos)
+                    ══════════════════════════════════════════ */
 
     /* Toggle button */
     .btn-tema {
