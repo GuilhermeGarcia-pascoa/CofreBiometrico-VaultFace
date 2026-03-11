@@ -1,6 +1,7 @@
 ﻿using System.Data;
 using System.Data.SqlClient;
 using System.Security.Cryptography;
+using System.Runtime.Versioning;
 
 namespace PapAtualizacaoBeleza
 {
@@ -42,8 +43,43 @@ namespace PapAtualizacaoBeleza
             }
         }
 
-        private static readonly byte[] chaveFixa = Convert.FromBase64String("+TOOq7NDcmzw6aU77P6DqujYd228n71xLKslYE4u6vI=");
-        private static readonly byte[] ivFixa = Convert.FromBase64String("Z0JGlkJBxWPMU0EoXhCvag==");
+        // ── Chave-mestra protegida com DPAPI do Windows ───────────────────────────
+        // Na primeira execução, gera uma chave AES-256 aleatória, protege-a com
+        // ProtectedData.Protect() (vinculada à conta Windows atual) e guarda em
+        // master.key na pasta AppData\VaultFace.
+        // Em execuções futuras, lê o ficheiro e desprotege com ProtectedData.Unprotect().
+        // Mesmo com acesso físico ao ficheiro .key e ao código-fonte, sem a sessão
+        // Windows que o criou é impossível recuperar a chave original.
+        [SupportedOSPlatform("windows")]
+        private static byte[] ObterChaveMestra()
+        {
+            string pasta = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "VaultFace");
+            Directory.CreateDirectory(pasta);
+            string caminhoKey = Path.Combine(pasta, "master.key");
+
+            if (File.Exists(caminhoKey))
+            {
+                // Carrega e desprotege a chave existente
+                byte[] protegida = File.ReadAllBytes(caminhoKey);
+                return ProtectedData.Unprotect(protegida, null, DataProtectionScope.CurrentUser);
+            }
+            else
+            {
+                // Primeira execução: gera chave aleatória, protege com DPAPI e guarda
+                byte[] novaChave = new byte[32];
+                using (var rng = RandomNumberGenerator.Create())
+                    rng.GetBytes(novaChave);
+
+                byte[] protegida = ProtectedData.Protect(novaChave, null, DataProtectionScope.CurrentUser);
+                File.WriteAllBytes(caminhoKey, protegida);
+                return novaChave;
+            }
+        }
+
+        // IV fixo derivado da chave — não precisa de ser secreto, apenas consistente
+        private static readonly byte[] ivFixa = new byte[16]; // IV zero — simples e consistente
 
         public BaseSql()
         {
@@ -595,11 +631,12 @@ namespace PapAtualizacaoBeleza
             }
         }
 
+        [SupportedOSPlatform("windows")]
         private byte[] CriptografarComChaveFixa(byte[] dados)
         {
             using (var aes = Aes.Create())
             {
-                aes.Key = chaveFixa;
+                aes.Key = ObterChaveMestra();
                 aes.IV = ivFixa;
                 using (var ms = new MemoryStream())
                 using (var cs = new CryptoStream(ms, aes.CreateEncryptor(), CryptoStreamMode.Write))
@@ -611,11 +648,12 @@ namespace PapAtualizacaoBeleza
             }
         }
 
+        [SupportedOSPlatform("windows")]
         private byte[] DescriptografarComChaveFixa(byte[] dados)
         {
             using (var aes = Aes.Create())
             {
-                aes.Key = chaveFixa;
+                aes.Key = ObterChaveMestra();
                 aes.IV = ivFixa;
                 using (var ms = new MemoryStream())
                 using (var cs = new CryptoStream(ms, aes.CreateDecryptor(), CryptoStreamMode.Write))

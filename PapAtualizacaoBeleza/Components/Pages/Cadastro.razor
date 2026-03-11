@@ -175,9 +175,38 @@
                             }
                         }
 
+                        @* ── Bloco de consentimento biométrico ── *@
+                        <div class="consent-box">
+                            <div class="consent-header">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="18" height="18">
+                                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                                </svg>
+                                <strong>Informação sobre dados biométricos</strong>
+                            </div>
+                            <p class="consent-text">
+                                <strong>O que é biometria?</strong> Biometria é a identificação de uma pessoa com base nas suas
+                                características físicas únicas — neste caso, o rosto. O sistema extrai padrões matemáticos do seu
+                                rosto e guarda-os na base de dados para comparação futura.
+                            </p>
+                            <p class="consent-text">
+                                <strong>Como são protegidos os seus dados?</strong> A imagem facial é encriptada com AES-256 em
+                                dupla camada antes de ser guardada. Os dados são processados localmente — nunca enviados para
+                                servidores externos. A chave de encriptação está vinculada a esta sessão Windows e é irrecuperável
+                                sem ela.
+                            </p>
+                            <p class="consent-text">
+                                <strong>Para que são usados?</strong> Exclusivamente para autenticação no cofre VaultFace.
+                            </p>
+                            <label class="consent-check">
+                                <input type="checkbox" @bind="consentimentoDado" />
+                                <span>Compreendo que a minha imagem facial será processada e armazenada de forma encriptada para fins de autenticação no VaultFace.</span>
+                            </label>
+                        </div>
+
                         <button class="btn-primary btn-full"
                                 @onclick="@(primeiroUtilizador? AvancarParaVerificacaoEmail : AvancarParaCamera)"
-                                disabled="@(string.IsNullOrWhiteSpace(nomeUsuario) || (primeiroUtilizador && string.IsNullOrWhiteSpace(emailUsuario)))">
+                                disabled="@(string.IsNullOrWhiteSpace(nomeUsuario) || (primeiroUtilizador && string.IsNullOrWhiteSpace(emailUsuario)) || !consentimentoDado)">
                             @(primeiroUtilizador ? "Continuar para verificação" : "Continuar para captura")
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
                         </button>
@@ -516,6 +545,7 @@
     private bool salvando = false;
     private bool primeiroUtilizador = false;
     private bool nomeErro = false;
+    private bool consentimentoDado = false; // checkbox de consentimento biométrico
     private string emailUsuario = "";
     private bool emailErro = false;
     private string emailErroEnvio = "";
@@ -699,6 +729,7 @@
         codigoErro = false;
         codigoExpirado = false;
         reenvioDesativado = false;
+        consentimentoDado = false;
         StateHasChanged();
     }
 
@@ -1298,8 +1329,8 @@
     }
 
     /* ══════════════════════════════════════════
-                       MODO CLARO (padrão)
-                    ══════════════════════════════════════════ */
+                           MODO CLARO (padrão)
+                        ══════════════════════════════════════════ */
     :root {
         --bg: #f0f2f5;
         --bg2: #f8f9fb;
@@ -1328,8 +1359,8 @@
     }
 
     /* ══════════════════════════════════════════
-                       MODO ESCURO — sobrescreve as variáveis
-                    ══════════════════════════════════════════ */
+                           MODO ESCURO — sobrescreve as variáveis
+                        ══════════════════════════════════════════ */
     .dark {
         --bg: #08090c;
         --bg2: #0e1016;
@@ -1439,8 +1470,8 @@
         }
 
     /* ══════════════════════════════════════════
-                       ESTILOS COMUNS (usam variáveis, funcionam em ambos os modos)
-                    ══════════════════════════════════════════ */
+                           ESTILOS COMUNS (usam variáveis, funcionam em ambos os modos)
+                        ══════════════════════════════════════════ */
 
     /* Toggle button */
     .btn-tema {
@@ -1779,6 +1810,82 @@
             height: 14px;
             flex-shrink: 0;
         }
+
+    /* ── Bloco de consentimento biométrico ── */
+    .consent-box {
+        background: #fffbeb;
+        border: 1px solid #fde68a;
+        border-left: 4px solid #f59e0b;
+        border-radius: 10px;
+        padding: 14px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        text-align: left;
+    }
+
+    .dark .consent-box {
+        background: rgba(245,158,11,0.07);
+        border-color: rgba(245,158,11,0.3);
+        border-left-color: #f59e0b;
+    }
+
+    .consent-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: #92400e;
+        font-size: 13px;
+    }
+
+    .dark .consent-header {
+        color: #fcd34d;
+    }
+
+    .consent-text {
+        font-size: 12px;
+        color: #78350f;
+        line-height: 1.5;
+        margin: 0;
+    }
+
+        .consent-text strong {
+            color: #92400e;
+        }
+
+    .dark .consent-text {
+        color: rgba(255,255,255,0.55);
+    }
+
+        .dark .consent-text strong {
+            color: #fcd34d;
+        }
+
+    .consent-check {
+        display: flex;
+        align-items: flex-start;
+        gap: 9px;
+        cursor: pointer;
+        font-size: 12px;
+        color: #92400e;
+        font-weight: 600;
+        line-height: 1.4;
+        padding-top: 4px;
+        border-top: 1px solid rgba(245,158,11,0.25);
+    }
+
+    .dark .consent-check {
+        color: #fcd34d;
+    }
+
+    .consent-check input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+        min-width: 16px;
+        accent-color: #f59e0b;
+        margin-top: 1px;
+        cursor: pointer;
+    }
 
     /* ── LAYOUT (Etapa 2) ── */
     .layout {

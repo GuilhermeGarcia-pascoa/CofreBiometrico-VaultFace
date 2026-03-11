@@ -186,6 +186,16 @@
                                 </svg>
                             </button>
 
+                            @* Botão "Como Funciona" *@
+                            <button class="help-toggle" @onclick="() => _mostrarAjuda = !_mostrarAjuda"
+                                    title="Como funciona">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                                    <circle cx="12" cy="12" r="10" />
+                                    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+                                    <line x1="12" y1="17" x2="12.01" y2="17" />
+                                </svg>
+                            </button>
+
                             @* Painel de diagnóstico *@
                             @if (_mostrarDiag)
                             {
@@ -262,6 +272,117 @@
 
         </div>
     </main>
+
+    @* ── Modal "Como Funciona" ─────────────────────────────────────────── *@
+    @if (_mostrarAjuda)
+    {
+        <div class="modal-backdrop" @onclick="() => _mostrarAjuda = false">
+            <div class="modal-box" @onclick:stopPropagation>
+                <div class="modal-header">
+                    <div class="modal-title-row">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="22" height="22">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                        </svg>
+                        <span>Como funciona o VaultFace</span>
+                    </div>
+                    <button class="modal-close" @onclick="() => _mostrarAjuda = false">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16">
+                            <line x1="18" y1="6" x2="6" y2="18" />
+                            <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="flow-steps">
+
+                    <div class="flow-step">
+                        <div class="flow-num">1</div>
+                        <div class="flow-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="28" height="28">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                                <circle cx="12" cy="7" r="4" />
+                            </svg>
+                        </div>
+                        <div class="flow-text">
+                            <strong>Utilizador aproxima-se do cofre</strong>
+                            <span>Posiciona o rosto em frente à câmara, dentro da guia oval</span>
+                        </div>
+                    </div>
+
+                    <div class="flow-arrow">↓</div>
+
+                    <div class="flow-step">
+                        <div class="flow-num">2</div>
+                        <div class="flow-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="28" height="28">
+                                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                                <circle cx="12" cy="13" r="4" />
+                            </svg>
+                        </div>
+                        <div class="flow-text">
+                            <strong>Câmara captura imagem</strong>
+                            <span>O sistema processa 25 imagens por segundo em tempo real</span>
+                        </div>
+                    </div>
+
+                    <div class="flow-arrow">↓</div>
+
+                    <div class="flow-step">
+                        <div class="flow-num">3</div>
+                        <div class="flow-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="28" height="28">
+                                <circle cx="11" cy="11" r="8" />
+                                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                            </svg>
+                        </div>
+                        <div class="flow-text">
+                            <strong>Reconhecimento facial (LBPH)</strong>
+                            <span>O algoritmo analisa padrões únicos do rosto e calcula uma pontuação de confiança</span>
+                        </div>
+                    </div>
+
+                    <div class="flow-arrow">↓</div>
+
+                    <div class="flow-step">
+                        <div class="flow-num">4</div>
+                        <div class="flow-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="28" height="28">
+                                <ellipse cx="12" cy="5" rx="9" ry="3" />
+                                <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
+                                <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+                            </svg>
+                        </div>
+                        <div class="flow-text">
+                            <strong>Comparação com a base de dados</strong>
+                            <span>Compara com os perfis biométricos registados, encriptados com AES-256</span>
+                        </div>
+                    </div>
+
+                    <div class="flow-arrow">↓</div>
+
+                    <div class="flow-step flow-step--split">
+                        <div class="flow-outcome flow-outcome--ok">
+                            <div class="flow-outcome-icon">✓</div>
+                            <strong>Autorizado</strong>
+                            <span>Cofre abre automaticamente</span>
+                        </div>
+                        <div class="flow-outcome-sep">ou</div>
+                        <div class="flow-outcome flow-outcome--nok">
+                            <div class="flow-outcome-icon">✗</div>
+                            <strong>Não autorizado</strong>
+                            <span>Cofre permanece fechado, acesso registado nos logs</span>
+                        </div>
+                    </div>
+
+                </div>
+
+                <p class="modal-note">
+                    Todos os dados biométricos são processados localmente — nunca enviados para servidores externos.
+                </p>
+            </div>
+        </div>
+    }
+
 </div>
 
 @code {
@@ -302,6 +423,7 @@
     private bool _frameDesfocado = false;
     private string _nomeAtual = "";
     private bool _mostrarDiag = false; // toggle pelo utilizador
+    private bool _mostrarAjuda = false; // toggle modal "Como Funciona"
 
     private Dictionary<int, Usuario> usuariosTreinados = new();
     private string imageBase64 = "";
@@ -601,8 +723,8 @@
     }
 
     /* ══════════════════════════════════════════
-               MODO CLARO (padrão)
-            ══════════════════════════════════════════ */
+                   MODO CLARO (padrão)
+                ══════════════════════════════════════════ */
     :root {
         --bg: #f0f2f5;
         --bg2: #f8f9fb;
@@ -627,8 +749,8 @@
     }
 
     /* ══════════════════════════════════════════
-               MODO ESCURO — sobrescreve as variáveis
-            ══════════════════════════════════════════ */
+                   MODO ESCURO — sobrescreve as variáveis
+                ══════════════════════════════════════════ */
     .dark {
         --bg: #08090c;
         --bg2: #0e1016;
@@ -690,8 +812,8 @@
         }
 
     /* ══════════════════════════════════════════
-               ESTILOS COMUNS
-            ══════════════════════════════════════════ */
+                   ESTILOS COMUNS
+                ══════════════════════════════════════════ */
 
     .btn-tema {
         background: none;
@@ -1050,6 +1172,297 @@
             color: rgba(255,255,255,0.9);
             border-color: rgba(255,255,255,0.3);
         }
+
+    /* Botão "Como Funciona" — fica à esquerda do diagnóstico */
+    .help-toggle {
+        position: absolute;
+        bottom: 13px;
+        right: 48px;
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: rgba(0,0,0,0.45);
+        border: 1px solid rgba(255,255,255,0.12);
+        color: rgba(255,255,255,0.55);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        backdrop-filter: blur(6px);
+        transition: all 0.2s;
+        z-index: 10;
+    }
+
+        .help-toggle:hover {
+            background: rgba(255,165,0,0.35);
+            color: rgba(255,200,80,0.95);
+            border-color: rgba(255,165,0,0.4);
+        }
+
+    /* Modal backdrop */
+    .modal-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.6);
+        backdrop-filter: blur(4px);
+        z-index: 200;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+    }
+
+    .modal-box {
+        background: #fff;
+        border-radius: 18px;
+        padding: 28px;
+        max-width: 480px;
+        width: 100%;
+        box-shadow: 0 24px 64px rgba(0,0,0,0.25);
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+
+    .dark .modal-box {
+        background: #1a1a2e;
+        border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .modal-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 22px;
+    }
+
+    .modal-title-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 17px;
+        font-weight: 700;
+        color: #1a1a2e;
+    }
+
+    .dark .modal-title-row {
+        color: #fff;
+    }
+
+    .modal-close {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        border: 1px solid #e0e0e0;
+        background: transparent;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #666;
+        transition: all 0.2s;
+    }
+
+        .modal-close:hover {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+    .dark .modal-close {
+        border-color: rgba(255,255,255,0.15);
+        color: rgba(255,255,255,0.5);
+    }
+
+        .dark .modal-close:hover {
+            background: rgba(255,255,255,0.08);
+            color: #fff;
+        }
+
+    /* Passos do fluxo */
+    .flow-steps {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .flow-step {
+        display: flex;
+        align-items: flex-start;
+        gap: 14px;
+        padding: 12px 14px;
+        border-radius: 12px;
+        background: #f7f8fc;
+        transition: background 0.2s;
+    }
+
+    .dark .flow-step {
+        background: rgba(255,255,255,0.04);
+    }
+
+    .flow-num {
+        min-width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        background: #f97316;
+        color: #fff;
+        font-size: 12px;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-top: 1px;
+    }
+
+    .flow-icon {
+        color: #f97316;
+        margin-top: 1px;
+    }
+
+    .dark .flow-icon {
+        color: #fb923c;
+    }
+
+    .flow-text {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+        .flow-text strong {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1a1a2e;
+        }
+
+        .flow-text span {
+            font-size: 12px;
+            color: #666;
+            line-height: 1.4;
+        }
+
+    .dark .flow-text strong {
+        color: #f0f0f0;
+    }
+
+    .dark .flow-text span {
+        color: rgba(255,255,255,0.45);
+    }
+
+    .flow-arrow {
+        text-align: center;
+        color: #ccc;
+        font-size: 16px;
+        padding: 2px 0;
+    }
+
+    .dark .flow-arrow {
+        color: rgba(255,255,255,0.2);
+    }
+
+    /* Resultado final — split */
+    .flow-step--split {
+        display: flex;
+        flex-direction: row;
+        gap: 0;
+        background: transparent;
+        padding: 0;
+    }
+
+    .flow-outcome {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        padding: 14px 10px;
+        border-radius: 12px;
+        text-align: center;
+    }
+
+        .flow-outcome strong {
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .flow-outcome span {
+            font-size: 11px;
+            color: #666;
+        }
+
+    .dark .flow-outcome span {
+        color: rgba(255,255,255,0.4);
+    }
+
+    .flow-outcome--ok {
+        background: #f0fdf4;
+        color: #16a34a;
+    }
+
+    .dark .flow-outcome--ok {
+        background: rgba(22,163,74,0.12);
+        color: #4ade80;
+    }
+
+    .flow-outcome--nok {
+        background: #fef2f2;
+        color: #dc2626;
+    }
+
+    .dark .flow-outcome--nok {
+        background: rgba(220,38,38,0.12);
+        color: #f87171;
+    }
+
+    .flow-outcome-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+        font-weight: 700;
+    }
+
+    .flow-outcome--ok .flow-outcome-icon {
+        background: #dcfce7;
+    }
+
+    .flow-outcome--nok .flow-outcome-icon {
+        background: #fee2e2;
+    }
+
+    .dark .flow-outcome--ok .flow-outcome-icon {
+        background: rgba(22,163,74,0.2);
+    }
+
+    .dark .flow-outcome--nok .flow-outcome-icon {
+        background: rgba(220,38,38,0.2);
+    }
+
+    .flow-outcome-sep {
+        display: flex;
+        align-items: center;
+        padding: 0 8px;
+        color: #aaa;
+        font-size: 12px;
+        font-style: italic;
+    }
+
+    .modal-note {
+        margin-top: 16px;
+        font-size: 11px;
+        color: #888;
+        text-align: center;
+        padding: 10px 14px;
+        background: #f7f8fc;
+        border-radius: 8px;
+        line-height: 1.5;
+    }
+
+    .dark .modal-note {
+        background: rgba(255,255,255,0.04);
+        color: rgba(255,255,255,0.35);
+    }
 
     /* Painel de diagnóstico */
     .diag-panel {
