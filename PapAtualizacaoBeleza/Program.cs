@@ -9,6 +9,7 @@ builder.Services.AddRazorComponents()
 builder.Services.AddSingleton<EstadoApp>();
 builder.Services.AddSingleton<TemaService>();
 builder.Services.AddScoped<EmailService>();
+builder.Services.AddScoped<RelatorioPdfService>();
 
 var app = builder.Build();
 
@@ -25,5 +26,15 @@ app.UseAntiforgery();
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
+
+// ── Download de PDF do relatório ─────────────────────────────────────────────
+app.MapGet("/api/relatorio-pdf", (string inicio, string fim, RelatorioPdfService pdf) =>
+{
+    if (!DateTime.TryParse(inicio, out var dtI)) dtI = DateTime.Today.AddDays(-6);
+    if (!DateTime.TryParse(fim, out var dtF)) dtF = DateTime.Now;
+    byte[] bytes = pdf.GerarRelatorio(dtI, dtF);
+    string nome = $"VaultFace_Relatorio_{dtI:yyyyMMdd}_{dtF:yyyyMMdd}.pdf";
+    return Results.File(bytes, "application/pdf", nome);
+});
 
 app.Run();

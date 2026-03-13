@@ -420,7 +420,10 @@
     // ── Exportar PDF (CSS print) ──────────────────────────────────────────────
     private async Task ExportarPDF()
     {
-        await JS.InvokeVoidAsync("window.print");
+        // Gera o PDF no servidor e faz download direto — sem diálogo de impressão
+        string ini = _inicio.ToString("yyyy-MM-dd");
+        string fim = _fim.ToString("yyyy-MM-dd");
+        await JS.InvokeVoidAsync("downloadUrl", $"/api/relatorio-pdf?inicio={ini}&fim={fim}");
     }
 
     // ── Enviar email ──────────────────────────────────────────────────────────

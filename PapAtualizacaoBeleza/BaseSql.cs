@@ -889,6 +889,23 @@ namespace PapAtualizacaoBeleza
             return s;
         }
 
+        // Dia 17: Devolve os últimos N eventos do utilizador (para o painel UserLogado).
+        public DataTable ObterHistoricoUtilizador(string nomeUtilizador, int limite = 10)
+        {
+            DataTable dt = new DataTable();
+            string sql = @"SELECT TOP (@Limite) DataHora, Acao, Detalhes
+                           FROM Logs
+                           WHERE DatabaseId = (SELECT TOP 1 DatabaseId FROM Databases ORDER BY DatabaseId DESC)
+                           AND Usuario = @Nome
+                           ORDER BY DataHora DESC";
+            using SqlConnection conn = new(_connectionStringAppData);
+            SqlCommand cmd = new(sql, conn);
+            cmd.Parameters.AddWithValue("@Limite", limite);
+            cmd.Parameters.AddWithValue("@Nome", nomeUtilizador);
+            new SqlDataAdapter(cmd).Fill(dt);
+            return dt;
+        }
+
         // Devolve lista de (Dia, Contagem) para o gráfico de barras.
         // Apenas conta logins bem-sucedidos agrupados por dia.
         public List<(DateTime Dia, int Total)> ObterAcessosPorDia(DateTime inicio, DateTime fim)

@@ -1,9 +1,11 @@
 ﻿@page "/UserLogado"
 @layout EmptyLayout
 @implements IDisposable
+@using System.Data
 @inject NavigationManager Navigation
 @inject EstadoApp Estado
 @inject TemaService Tema
+@inject BaseSql BancoService
 @rendermode InteractiveServer
 
 @using SProjetoPapAtualizacao
@@ -273,6 +275,47 @@
                 </button>
             }
 
+            @* ── Dia 17: HISTÓRICO DE ACESSOS ── *@
+            <div class="panel historico-panel">
+                <div class="historico-header">
+                    <div class="historico-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="20" height="20">
+                            <circle cx="12" cy="12" r="10" />
+                            <polyline points="12 6 12 12 16 14" />
+                        </svg>
+                    </div>
+                    <h3 class="historico-titulo">Os meus últimos acessos</h3>
+                </div>
+                @if (_historico == null || _historico.Rows.Count == 0)
+                {
+                    <p class="historico-empty">Sem registos de acesso anteriores.</p>
+                }
+                else
+                {
+                    <div class="historico-table-wrap">
+                        <table class="historico-table">
+                            <thead>
+                                <tr>
+                                    <th>Data / Hora</th>
+                                    <th>Ação</th>
+                                    <th>Detalhes</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (System.Data.DataRow row in _historico.Rows)
+                                {
+                                    <tr class="@GetCorHistorico(row["Acao"]?.ToString())">
+                                        <td class="hist-data">@Convert.ToDateTime(row["DataHora"]).ToString("dd/MM/yyyy HH:mm")</td>
+                                        <td><span class="hist-badge @GetBadgeHistorico(row["Acao"]?.ToString())">@row["Acao"]</span></td>
+                                        <td class="hist-det">@row["Detalhes"]</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+
         </div>
     </main>
 </div>
@@ -282,6 +325,23 @@
     private EstadoCofre estadoCofre = EstadoCofre.Fechado;
     private string? erroHardware = null;
     private bool mostrarPopupLogout = false;
+
+    // Dia 17: Histórico de acessos do utilizador
+    private System.Data.DataTable? _historico;
+
+    private string GetCorHistorico(string? acao) => acao switch
+    {
+        "Login" => "hist-verde",
+        "Acesso Negado" => "hist-vermelho",
+        _ => ""
+    };
+
+    private string GetBadgeHistorico(string? acao) => acao switch
+    {
+        "Login" => "badge-verde",
+        "Acesso Negado" => "badge-vermelho",
+        _ => "badge-cinza"
+    };
 
     private const int DURACAO_MOTOR_MS = 2500;
 
@@ -327,6 +387,10 @@
 
         // Inicia monitorização contínua da ligação
         IniciarMonitorLigacao();
+
+        // Dia 17: carregar histórico de acessos do utilizador atual
+        await Task.Run(() =>
+            _historico = BancoService.ObterHistoricoUtilizador(Estado.UsuarioAtual!.Nome));
 
         StateHasChanged();
     }
@@ -1770,6 +1834,138 @@
         to {
             transform: rotate(360deg);
         }
+    }
+
+    /* ── Dia 17: Histórico de acessos ── */
+    .historico-panel {
+        background: var(--surface);
+        border-radius: var(--radius, 16px);
+        padding: 20px;
+        border: 1px solid var(--border, rgba(255,255,255,0.08));
+    }
+
+    .historico-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 14px;
+    }
+
+    .historico-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+        background: #EBF3FB;
+        color: #2E74B5;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .dark .historico-icon {
+        background: rgba(46,116,181,0.15);
+        color: #60a5fa;
+    }
+
+    .historico-titulo {
+        font-size: 15px;
+        font-weight: 700;
+        margin: 0;
+    }
+
+    .historico-empty {
+        font-size: 13px;
+        color: var(--dim, #888);
+        margin: 0;
+        text-align: center;
+        padding: 20px 0;
+    }
+
+    .historico-table-wrap {
+        overflow-x: auto;
+        border-radius: 8px;
+        border: 1px solid var(--border, rgba(255,255,255,0.08));
+    }
+
+    .historico-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+    }
+
+        .historico-table th {
+            background: var(--bg, #f4f6fb);
+            padding: 8px 12px;
+            text-align: left;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--dim, #888);
+            border-bottom: 1px solid var(--border, rgba(255,255,255,0.08));
+            white-space: nowrap;
+        }
+
+        .historico-table td {
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border, rgba(255,255,255,0.05));
+            vertical-align: middle;
+        }
+
+        .historico-table tr:last-child td {
+            border-bottom: none;
+        }
+
+    .hist-verde td {
+        border-left: 3px solid #16a34a;
+    }
+
+    .hist-vermelho td {
+        border-left: 3px solid #dc2626;
+    }
+
+    .hist-data {
+        white-space: nowrap;
+        color: var(--dim, #888);
+        font-size: 11px;
+    }
+
+    .hist-det {
+        font-size: 11px;
+        color: var(--dim, #888);
+        max-width: 240px;
+    }
+
+    .hist-badge {
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 10px;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    .badge-verde {
+        background: #dcfce7;
+        color: #16a34a;
+    }
+
+    .badge-vermelho {
+        background: #fee2e2;
+        color: #dc2626;
+    }
+
+    .badge-cinza {
+        background: var(--bg, #f4f6fb);
+        color: var(--dim, #888);
+    }
+
+    .dark .badge-verde {
+        background: rgba(22,163,74,0.15);
+        color: #4ade80;
+    }
+
+    .dark .badge-vermelho {
+        background: rgba(220,38,38,0.15);
+        color: #f87171;
     }
 
     .admin-panel {
