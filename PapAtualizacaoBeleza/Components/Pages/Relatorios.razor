@@ -249,9 +249,9 @@
                     <div class="table-wrap">
                         <table class="logs-table">
                             <colgroup>
-                                <col />
-                                <col />
-                                <col />
+                                <col style="width:140px" />
+                                <col style="width:150px" />
+                                <col style="width:150px" />
                                 <col />
                             </colgroup>
                             <thead>
@@ -267,7 +267,7 @@
                                 {
                                     <tr class="@GetCorLinha(row["Acao"]?.ToString())">
                                         <td class="td-data">@Convert.ToDateTime(row["DataHora"]).ToString("dd/MM/yyyy HH:mm")</td>
-                                        <td>@row["Usuario"]</td>
+                                        <td class="td-user">@row["Usuario"]</td>
                                         <td><span class="acao-badge @GetBadgeClass(row["Acao"]?.ToString())">@row["Acao"]</span></td>
                                         <td class="td-det">@row["Detalhes"]</td>
                                     </tr>
@@ -329,18 +329,32 @@
     // Gera o SVG como string para evitar o erro do Razor com <text> com atributos
     private string GerarSvgGrafico()
     {
-        int largura = _grafico.Count * 44;
+        // Largura mínima: sempre mostrar pelo menos 7 colunas para não esticar
+        int numColunas = Math.Max(_grafico.Count, 7);
+        int largura = numColunas * 44;
         var sb = new System.Text.StringBuilder();
-        sb.Append($"<svg class=\"grafico-svg\" viewBox=\"0 0 {largura} 170\" preserveAspectRatio=\"none\">");
+        // preserveAspectRatio="xMinYMid meet" mantém proporção e não estica
+        sb.Append($"<svg class=\"grafico-svg\" viewBox=\"0 0 {largura} 170\" preserveAspectRatio=\"xMinYMid meet\">");
+
+        // Linhas de grelha horizontais
+        for (int yl = 0; yl <= 3; yl++)
+        {
+            int yGrid = 30 + (int)(GRAFICO_H / 3.0 * yl);
+            sb.Append($"<line x1=\"0\" y1=\"{yGrid}\" x2=\"{largura}\" y2=\"{yGrid}\" stroke=\"#e5e9f2\" stroke-width=\"0.5\"/>");
+        }
+
         int gx = 0;
         foreach (var (dia, total) in _grafico)
         {
             int altPx = AlturaBarraPx(total);
             int gy = GRAFICO_H - altPx + 30;
-            sb.Append($"<rect x=\"{gx + 6}\" y=\"{gy}\" width=\"32\" height=\"{altPx}\" fill=\"#2E74B5\" rx=\"3\" opacity=\"0.85\"/>");
+            // Barra com gradiente visual via dois rects sobrepostos
+            sb.Append($"<rect x=\"{gx + 8}\" y=\"{gy}\" width=\"28\" height=\"{altPx}\" fill=\"#2E74B5\" rx=\"4\" opacity=\"0.85\"/>");
+            if (altPx > 0)
+                sb.Append($"<rect x=\"{gx + 8}\" y=\"{gy}\" width=\"28\" height=\"{Math.Min(altPx, 8)}\" fill=\"#4A9FE0\" rx=\"4\" opacity=\"0.6\"/>");
             if (total > 0)
-                sb.Append($"<text x=\"{gx + 22}\" y=\"{gy - 5}\" text-anchor=\"middle\" font-size=\"9\" fill=\"#2E74B5\" font-weight=\"600\">{total}</text>");
-            sb.Append($"<text x=\"{gx + 22}\" y=\"163\" text-anchor=\"middle\" font-size=\"8\" fill=\"#888\">{dia:dd/MM}</text>");
+                sb.Append($"<text x=\"{gx + 22}\" y=\"{gy - 4}\" text-anchor=\"middle\" font-size=\"9\" fill=\"#2E74B5\" font-weight=\"700\">{total}</text>");
+            sb.Append($"<text x=\"{gx + 22}\" y=\"163\" text-anchor=\"middle\" font-size=\"8\" fill=\"#aaa\">{dia:dd/MM}</text>");
             gx += 44;
         }
         sb.Append("</svg>");
@@ -427,13 +441,12 @@
     // ── Exportar PDF — download direto do servidor (QuestPDF) ──────────────
     private async Task ExportarPDF()
     {
-        // _fim com hora final do dia para o BETWEEN SQL apanhar tudo
         string ini = _inicio.ToString("yyyy-MM-ddT00:00:00");
         string fim = _fim.Date.ToString("yyyy-MM-ddT23:59:59");
         await JS.InvokeVoidAsync("downloadUrl", $"/api/relatorio-pdf?inicio={Uri.EscapeDataString(ini)}&fim={Uri.EscapeDataString(fim)}");
     }
 
-    // ── Enviar email com PDF anexado ─────────────────────────────────────────
+    // ── Enviar email ──────────────────────────────────────────────────────────
     private async Task EnviarPorEmail()
     {
         _enviandoEmail = true;
@@ -443,18 +456,12 @@
         var (email, _) = BaseSqlService.ObterEmailUserMaster();
         if (!string.IsNullOrEmpty(email))
         {
-            // Gerar o PDF em memória para anexar
             byte[]? pdfBytes = null;
             try { pdfBytes = PdfSvc.GerarRelatorio(_inicio, _fim.Date.AddDays(1).AddSeconds(-1)); }
-            catch { /* se falhar o pdf, envia sem anexo */ }
-
+            catch { }
             await EmailSvc.EnviarRelatorioAsync(
-                email,
-                Estado.UsuarioAtual!.Nome,
-                _stats,
-                _inicio,
-                _fim,
-                pdfBytes);
+                email, Estado.UsuarioAtual!.Nome,
+                _stats, _inicio, _fim, pdfBytes);
             _emailEnviado = true;
         }
 
@@ -862,7 +869,8 @@
     .grafico-svg {
         display: block;
         height: 180px;
-        min-width: 100%;
+        width: 100%;
+        /* Não esticar — preservar proporção */
     }
 
     /* ── Tabela ── */
@@ -902,12 +910,8 @@
         width: 220px;
     }
 
-    /* ── Tabela de logs — compacta e elegante ── */
     .table-wrap {
         overflow-x: auto;
-        border-radius: 12px;
-        border: 1px solid var(--border, #e5e9f2);
-        box-shadow: 0 1px 4px rgba(0,0,0,0.05);
     }
 
     .logs-table {
@@ -917,32 +921,22 @@
         table-layout: fixed;
     }
 
-    .logs-table colgroup col:nth-child(1) { width: 140px; }  /* data/hora */
-    .logs-table colgroup col:nth-child(2) { width: 130px; }  /* utilizador */
-    .logs-table colgroup col:nth-child(3) { width: 140px; }  /* ação */
-    .logs-table colgroup col:nth-child(4) { width: auto;  }  /* detalhes */
-
-    .logs-table thead tr {
-        background: var(--bg, #f4f6fb);
-        border-bottom: 2px solid var(--border, #e5e9f2);
-    }
-
     .logs-table th {
-        padding: 10px 12px;
+        background: var(--bg, #f4f6fb);
+        padding: 10px 16px;
         text-align: left;
         font-size: 11px;
         font-weight: 700;
         color: var(--dim, #888);
-        letter-spacing: 0.5px;
+        letter-spacing: 0.4px;
         text-transform: uppercase;
+        border-bottom: 2px solid var(--border, #e5e9f2);
         white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
     }
 
     .logs-table td {
-        padding: 9px 12px;
-        border-bottom: 1px solid var(--border, #e5e9f2);
+        padding: 11px 16px;
+        border-bottom: 1px solid var(--border, #eef0f6);
         vertical-align: middle;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -950,74 +944,56 @@
     }
 
     .logs-table tbody tr:last-child td { border-bottom: none; }
+    .logs-table tbody tr:nth-child(even) td { background: rgba(0,0,0,0.015); }
+    .logs-table tbody tr:hover td { background: var(--bg, #f4f6fb); }
 
-    .logs-table tbody tr:hover td {
-        background: var(--bg, #f4f6fb);
-        transition: background 0.12s;
-    }
-
-    .linha-verde  td:first-child { border-left: 3px solid #16a34a; padding-left: 10px; }
-    .linha-vermelha td:first-child { border-left: 3px solid #dc2626; padding-left: 10px; }
-    .linha-azul   td:first-child { border-left: 3px solid #2E74B5; padding-left: 10px; }
+    .linha-verde  td:first-child { border-left: 3px solid #16a34a; }
+    .linha-vermelha td:first-child { border-left: 3px solid #dc2626; }
+    .linha-azul   td:first-child { border-left: 3px solid #2E74B5; }
 
     .td-data {
         white-space: nowrap;
         color: var(--dim, #888);
-        font-size: 12px;
+        font-size: 12.5px;
         font-variant-numeric: tabular-nums;
+    }
+
+    .td-user {
+        font-weight: 500;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     .td-det {
         font-size: 12px;
         color: var(--dim, #888);
-        white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-        max-width: 0; /* force table-layout:fixed to work */
     }
 
     .acao-badge {
-        padding: 3px 8px;
-        border-radius: 12px;
-        font-size: 11px;
-        font-weight: 600;
+        display: inline-block;
+        padding: 3px 10px;
+        border-radius: 20px;
+        font-size: 11.5px;
+        font-weight: 700;
         white-space: nowrap;
+        letter-spacing: 0.1px;
     }
 
-    .badge-verde {
-        background: #dcfce7;
-        color: #16a34a;
-    }
-
-    .badge-vermelho {
-        background: #fee2e2;
-        color: #dc2626;
-    }
-
-    .badge-azul {
-        background: #dbeafe;
-        color: #2563eb;
-    }
+    .badge-verde   { background: #dcfce7; color: #16a34a; }
+    .badge-vermelho { background: #fee2e2; color: #dc2626; }
+    .badge-azul    { background: #dbeafe; color: #2563eb; }
 
     .badge-cinza {
         background: var(--bg, #f4f6fb);
         color: var(--dim, #888);
     }
 
-    .dark .badge-verde {
-        background: rgba(22,163,74,0.15);
-        color: #4ade80;
-    }
-
-    .dark .badge-vermelho {
-        background: rgba(220,38,38,0.15);
-        color: #f87171;
-    }
-
-    .dark .badge-azul {
-        background: rgba(37,99,235,0.15);
-        color: #60a5fa;
-    }
+    .dark .badge-verde    { background: rgba(22,163,74,0.15);  color: #4ade80; }
+    .dark .badge-vermelho  { background: rgba(220,38,38,0.15); color: #f87171; }
+    .dark .badge-azul      { background: rgba(37,99,235,0.15); color: #60a5fa; }
+    .dark .logs-table tbody tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
 
     /* ── Paginação ── */
     .pagination {
