@@ -9,6 +9,7 @@
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 @inject EmailService EmailSvc
+@inject RelatorioPdfService PdfSvc
 
 <PageTitle>Relatórios — VaultFace</PageTitle>
 
@@ -247,6 +248,12 @@
                 {
                     <div class="table-wrap">
                         <table class="logs-table">
+                            <colgroup>
+                                <col />
+                                <col />
+                                <col />
+                                <col />
+                            </colgroup>
                             <thead>
                                 <tr>
                                     <th>Data / Hora</th>
@@ -417,16 +424,16 @@
         if (filtro != "custom") await CarregarDados();
     }
 
-    // ── Exportar PDF (CSS print) ──────────────────────────────────────────────
+    // ── Exportar PDF — download direto do servidor (QuestPDF) ──────────────
     private async Task ExportarPDF()
     {
-        // Gera o PDF no servidor e faz download direto — sem diálogo de impressão
-        string ini = _inicio.ToString("yyyy-MM-dd");
-        string fim = _fim.ToString("yyyy-MM-dd");
-        await JS.InvokeVoidAsync("downloadUrl", $"/api/relatorio-pdf?inicio={ini}&fim={fim}");
+        // _fim com hora final do dia para o BETWEEN SQL apanhar tudo
+        string ini = _inicio.ToString("yyyy-MM-ddT00:00:00");
+        string fim = _fim.Date.ToString("yyyy-MM-ddT23:59:59");
+        await JS.InvokeVoidAsync("downloadUrl", $"/api/relatorio-pdf?inicio={Uri.EscapeDataString(ini)}&fim={Uri.EscapeDataString(fim)}");
     }
 
-    // ── Enviar email ──────────────────────────────────────────────────────────
+    // ── Enviar email com PDF anexado ─────────────────────────────────────────
     private async Task EnviarPorEmail()
     {
         _enviandoEmail = true;
@@ -436,12 +443,18 @@
         var (email, _) = BaseSqlService.ObterEmailUserMaster();
         if (!string.IsNullOrEmpty(email))
         {
+            // Gerar o PDF em memória para anexar
+            byte[]? pdfBytes = null;
+            try { pdfBytes = PdfSvc.GerarRelatorio(_inicio, _fim.Date.AddDays(1).AddSeconds(-1)); }
+            catch { /* se falhar o pdf, envia sem anexo */ }
+
             await EmailSvc.EnviarRelatorioAsync(
                 email,
                 Estado.UsuarioAtual!.Nome,
                 _stats,
                 _inicio,
-                _fim);
+                _fim,
+                pdfBytes);
             _emailEnviado = true;
         }
 
@@ -889,63 +902,78 @@
         width: 220px;
     }
 
+    /* ── Tabela de logs — compacta e elegante ── */
     .table-wrap {
         overflow-x: auto;
+        border-radius: 12px;
+        border: 1px solid var(--border, #e5e9f2);
+        box-shadow: 0 1px 4px rgba(0,0,0,0.05);
     }
 
     .logs-table {
         width: 100%;
         border-collapse: collapse;
         font-size: 13px;
+        table-layout: fixed;
     }
 
-        .logs-table th {
-            background: var(--bg, #f4f6fb);
-            padding: 10px 14px;
-            text-align: left;
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--dim, #888);
-            border-bottom: 1px solid var(--border, #e5e9f2);
-            white-space: nowrap;
-        }
+    .logs-table colgroup col:nth-child(1) { width: 140px; }  /* data/hora */
+    .logs-table colgroup col:nth-child(2) { width: 130px; }  /* utilizador */
+    .logs-table colgroup col:nth-child(3) { width: 140px; }  /* ação */
+    .logs-table colgroup col:nth-child(4) { width: auto;  }  /* detalhes */
 
-        .logs-table td {
-            padding: 10px 14px;
-            border-bottom: 1px solid var(--border, #e5e9f2);
-            vertical-align: middle;
-        }
-
-        .logs-table tr:last-child td {
-            border-bottom: none;
-        }
-
-        .logs-table tr:hover td {
-            background: var(--bg, #f4f6fb);
-        }
-
-    .linha-verde td {
-        border-left: 3px solid #16a34a;
+    .logs-table thead tr {
+        background: var(--bg, #f4f6fb);
+        border-bottom: 2px solid var(--border, #e5e9f2);
     }
 
-    .linha-vermelha td {
-        border-left: 3px solid #dc2626;
+    .logs-table th {
+        padding: 10px 12px;
+        text-align: left;
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--dim, #888);
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
-    .linha-azul td {
-        border-left: 3px solid #2E74B5;
+    .logs-table td {
+        padding: 9px 12px;
+        border-bottom: 1px solid var(--border, #e5e9f2);
+        vertical-align: middle;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
+
+    .logs-table tbody tr:last-child td { border-bottom: none; }
+
+    .logs-table tbody tr:hover td {
+        background: var(--bg, #f4f6fb);
+        transition: background 0.12s;
+    }
+
+    .linha-verde  td:first-child { border-left: 3px solid #16a34a; padding-left: 10px; }
+    .linha-vermelha td:first-child { border-left: 3px solid #dc2626; padding-left: 10px; }
+    .linha-azul   td:first-child { border-left: 3px solid #2E74B5; padding-left: 10px; }
 
     .td-data {
         white-space: nowrap;
         color: var(--dim, #888);
         font-size: 12px;
+        font-variant-numeric: tabular-nums;
     }
 
     .td-det {
         font-size: 12px;
         color: var(--dim, #888);
-        max-width: 320px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 0; /* force table-layout:fixed to work */
     }
 
     .acao-badge {

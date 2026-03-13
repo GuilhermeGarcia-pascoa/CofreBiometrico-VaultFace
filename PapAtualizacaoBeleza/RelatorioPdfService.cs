@@ -17,8 +17,8 @@ namespace PapAtualizacaoBeleza
 
         public byte[] GerarRelatorio(DateTime inicio, DateTime fim)
         {
-            var logs    = _db.ObterLogsFiltrados(inicio, fim);
-            var stats   = _db.ObterEstatisticasPeriodo(inicio, fim);
+            var logs = _db.ObterLogsFiltrados(inicio, fim);
+            var stats = _db.ObterEstatisticasPeriodo(inicio, fim);
             var grafico = _db.ObterAcessosPorDia(inicio, fim);
 
             return Document.Create(doc =>
@@ -57,11 +57,11 @@ namespace PapAtualizacaoBeleza
                         // KPIs
                         col.Item().Row(row =>
                         {
-                            Kpi(row, "Total de Acessos",      stats.TotalAcessos.ToString(),      "#2E74B5");
-                            Kpi(row, "Tentativas Falhadas",   stats.TentativasFalhadas.ToString(), "#DC2626");
-                            Kpi(row, "Utilizador Mais Ativo", stats.UtilizadorMaisAtivo,           "#EA580C");
-                            Kpi(row, "Hora de Pico",          $"{stats.HoraDePico}h",             "#7C3AED");
-                            Kpi(row, "Novos Cadastros",       stats.TotalCadastros.ToString(),     "#16A34A");
+                            Kpi(row, "Total de Acessos", stats.TotalAcessos.ToString(), "#2E74B5");
+                            Kpi(row, "Tentativas Falhadas", stats.TentativasFalhadas.ToString(), "#DC2626");
+                            Kpi(row, "Utilizador Mais Ativo", stats.UtilizadorMaisAtivo, "#EA580C");
+                            Kpi(row, "Hora de Pico", $"{stats.HoraDePico}h", "#7C3AED");
+                            Kpi(row, "Novos Cadastros", stats.TotalCadastros.ToString(), "#16A34A");
                         });
 
                         // Gráfico
@@ -122,8 +122,8 @@ namespace PapAtualizacaoBeleza
                                 foreach (DataRow row in logs.Rows)
                                 {
                                     string acao = row["Acao"]?.ToString() ?? "";
-                                    string bg   = alt ? "#F9FAFB" : "#FFFFFF";
-                                    string corAcao  = acao switch { "Login" => "#16A34A", "Acesso Negado" => "#DC2626", "Criação de Usuário" => "#2563EB", _ => "#555555" };
+                                    string bg = alt ? "#F9FAFB" : "#FFFFFF";
+                                    string corAcao = acao switch { "Login" => "#16A34A", "Acesso Negado" => "#DC2626", "Criação de Usuário" => "#2563EB", _ => "#555555" };
                                     string corBorda = acao switch { "Login" => "#16A34A", "Acesso Negado" => "#DC2626", "Criação de Usuário" => "#2563EB", _ => "#CCCCCC" };
 
                                     t.Cell().Background(bg).BorderLeft(3).BorderColor(corBorda).Padding(5)

@@ -19,13 +19,13 @@
     <ReconnectModal />
     <script src="@Assets["_framework/blazor.web.js"]"></script>
     <script>
-        window.downloadUrl = function (url) {
-            const a = document.createElement('a');
+        window.downloadUrl = function(url) {
+            var a = document.createElement('a');
             a.href = url;
             a.download = '';
             document.body.appendChild(a);
             a.click();
-            document.body.removeChild(a);
+            setTimeout(function() { document.body.removeChild(a); }, 200);
         };
     </script>
 </body>

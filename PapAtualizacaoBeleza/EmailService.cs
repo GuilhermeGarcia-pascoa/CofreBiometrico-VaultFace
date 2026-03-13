@@ -36,41 +36,6 @@ namespace PapAtualizacaoBeleza
             return codigo;
         }
 
-        // Dia 15: Envia notificação de acesso ao AdminSupremo cada vez que alguém entra.
-        public async Task EnviarNotificacaoAcessoAsync(
-            string emailAdmin,
-            string nomeUtilizador,
-            DateTime horaAcesso)
-        {
-            string assunto = $"VaultFace — Acesso registado: {nomeUtilizador}";
-            string corpo = $@"
-<!DOCTYPE html>
-<html>
-<body style='font-family:Arial,sans-serif;max-width:520px;margin:0 auto;color:#1a1a2e;'>
-  <div style='background:#1F3864;padding:22px 28px;border-radius:12px 12px 0 0;'>
-    <h2 style='color:#fff;margin:0;font-size:18px;'>&#x1F513; VaultFace — Acesso ao Cofre</h2>
-    <p style='color:#aac4e0;margin:6px 0 0;font-size:13px;'>Notificação automática</p>
-  </div>
-  <div style='background:#f7f9fc;padding:24px 28px;border-radius:0 0 12px 12px;border:1px solid #dde4ef;border-top:none;'>
-    <p style='margin:0 0 18px;font-size:14px;'>Um novo acesso foi registado no sistema VaultFace.</p>
-    <table width='100%' cellpadding='10' cellspacing='0' style='border-collapse:collapse;border-radius:8px;overflow:hidden;'>
-      <tr style='background:#2E74B5;color:#fff;'>
-        <td style='font-size:13px;font-weight:bold;'>Campo</td>
-        <td style='font-size:13px;font-weight:bold;'>Valor</td>
-      </tr>
-      <tr style='background:#fff;'><td style='border-bottom:1px solid #eee;'>Utilizador</td><td style='border-bottom:1px solid #eee;font-weight:bold;'>{nomeUtilizador}</td></tr>
-      <tr style='background:#f7f9fc;'><td style='border-bottom:1px solid #eee;'>Data / Hora</td><td style='border-bottom:1px solid #eee;'>{horaAcesso:dd/MM/yyyy HH:mm:ss}</td></tr>
-      <tr style='background:#fff;'><td>Método</td><td>Reconhecimento facial (LBPH)</td></tr>
-    </table>
-    <p style='margin:18px 0 0;font-size:11px;color:#999;border-top:1px solid #eee;padding-top:14px;'>
-      Se não reconhece este acesso, aceda ao painel de administração VaultFace imediatamente.
-    </p>
-  </div>
-</body>
-</html>";
-            await EnviarEmailAsync(emailAdmin, "Administrador", assunto, corpo);
-        }
-
         // Envia o email de boas-vindas após registo completo.
         public async Task EnviarConfirmacaoUserMasterAsync(string emailDestino, string nomeUtilizador)
         {
@@ -84,12 +49,48 @@ namespace PapAtualizacaoBeleza
 
         // Envia um resumo de relatório de acessos por email ao AdminSupremo.
         // Chamado manualmente pelo admin na página de relatórios — sem agendamento automático.
+        // Dia 15: Notificação automática ao AdminSupremo cada vez que o cofre abre.
+        public async Task EnviarNotificacaoAcessoAsync(
+            string emailAdmin,
+            string nomeUtilizador,
+            DateTime horaAcesso)
+        {
+            string assunto = $"VaultFace — Acesso registado: {nomeUtilizador}";
+            string corpo = $@"
+<!DOCTYPE html>
+<html>
+<body style='font-family:Arial,sans-serif;max-width:520px;margin:0 auto;color:#1a1a2e;'>
+  <div style='background:#1F3864;padding:22px 28px;border-radius:12px 12px 0 0;'>
+    <h2 style='color:#fff;margin:0;font-size:18px;'>&#x1F513; VaultFace &mdash; Acesso ao Cofre</h2>
+    <p style='color:#aac4e0;margin:6px 0 0;font-size:13px;'>Notifica&ccedil;&atilde;o autom&aacute;tica</p>
+  </div>
+  <div style='background:#f7f9fc;padding:24px 28px;border-radius:0 0 12px 12px;border:1px solid #dde4ef;border-top:none;'>
+    <p style='margin:0 0 18px;font-size:14px;'>Um novo acesso foi registado no sistema VaultFace.</p>
+    <table width='100%' cellpadding='10' cellspacing='0' style='border-collapse:collapse;'>
+      <tr style='background:#2E74B5;color:#fff;'>
+        <td style='font-size:13px;font-weight:bold;'>Campo</td>
+        <td style='font-size:13px;font-weight:bold;'>Valor</td>
+      </tr>
+      <tr style='background:#fff;'><td style='border-bottom:1px solid #eee;'>Utilizador</td><td style='border-bottom:1px solid #eee;font-weight:bold;'>{nomeUtilizador}</td></tr>
+      <tr style='background:#f7f9fc;'><td style='border-bottom:1px solid #eee;'>Data / Hora</td><td style='border-bottom:1px solid #eee;'>{horaAcesso:dd/MM/yyyy HH:mm:ss}</td></tr>
+      <tr style='background:#fff;'><td>M&eacute;todo</td><td>Reconhecimento facial (LBPH)</td></tr>
+    </table>
+    <p style='margin:18px 0 0;font-size:11px;color:#999;border-top:1px solid #eee;padding-top:14px;'>
+      Se n&atilde;o reconhece este acesso, aceda ao painel de administra&ccedil;&atilde;o VaultFace imediatamente.
+    </p>
+  </div>
+</body>
+</html>";
+            await EnviarEmailAsync(emailAdmin, "Administrador", assunto, corpo);
+        }
+
         public async Task EnviarRelatorioAsync(
             string emailDestino,
             string nomeAdmin,
             EstatisticasRelatorio stats,
             DateTime inicio,
-            DateTime fim)
+            DateTime fim,
+            byte[]? pdfAnexo = null)
         {
             string assunto = $"VaultFace — Relatório de {inicio:dd/MM/yyyy} a {fim:dd/MM/yyyy}";
             string corpo = $@"
@@ -137,13 +138,14 @@ namespace PapAtualizacaoBeleza
   </div>
 </body>
 </html>";
-            await EnviarEmailAsync(emailDestino, nomeAdmin, assunto, corpo);
+            await EnviarEmailAsync(emailDestino, nomeAdmin, assunto, corpo, pdfAnexo);
         }
 
         // Envio SMTP
 
         private async Task EnviarEmailAsync(string emailDestino, string nomeDestinatario,
-                                            string assunto, string corpo)
+                                            string assunto, string corpo,
+                                            byte[]? pdfAnexo = null)
         {
             using var msg = new MailMessage
             {
@@ -153,6 +155,14 @@ namespace PapAtualizacaoBeleza
                 IsBodyHtml = true,
             };
             msg.To.Add(new MailAddress(emailDestino, nomeDestinatario));
+
+            // Anexar PDF se fornecido
+            if (pdfAnexo != null && pdfAnexo.Length > 0)
+            {
+                var stream = new MemoryStream(pdfAnexo);
+                var anexo = new Attachment(stream, "VaultFace_Relatorio.pdf", "application/pdf");
+                msg.Attachments.Add(anexo);
+            }
 
             using var smtp = new SmtpClient(_smtpHost, _smtpPort)
             {

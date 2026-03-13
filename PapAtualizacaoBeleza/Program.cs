@@ -27,11 +27,13 @@ app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
-// ── Download de PDF do relatório ─────────────────────────────────────────────
+// ── Download PDF do relatório ─────────────────────────────────────────────────
 app.MapGet("/api/relatorio-pdf", (string inicio, string fim, RelatorioPdfService pdf) =>
 {
+    // Parse robusto — aceita ISO 8601 completo (yyyy-MM-ddTHH:mm:ss)
     if (!DateTime.TryParse(inicio, out var dtI)) dtI = DateTime.Today.AddDays(-6);
     if (!DateTime.TryParse(fim, out var dtF)) dtF = DateTime.Now;
+
     byte[] bytes = pdf.GerarRelatorio(dtI, dtF);
     string nome = $"VaultFace_Relatorio_{dtI:yyyyMMdd}_{dtF:yyyyMMdd}.pdf";
     return Results.File(bytes, "application/pdf", nome);
