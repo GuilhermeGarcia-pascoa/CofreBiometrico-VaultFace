@@ -47,6 +47,64 @@ namespace PapAtualizacaoBeleza
             );
         }
 
+        // Envia um resumo de relatório de acessos por email ao AdminSupremo.
+        // Chamado manualmente pelo admin na página de relatórios — sem agendamento automático.
+        public async Task EnviarRelatorioAsync(
+            string emailDestino,
+            string nomeAdmin,
+            EstatisticasRelatorio stats,
+            DateTime inicio,
+            DateTime fim)
+        {
+            string assunto = $"VaultFace — Relatório de {inicio:dd/MM/yyyy} a {fim:dd/MM/yyyy}";
+            string corpo = $@"
+<!DOCTYPE html>
+<html>
+<body style='font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#1a1a2e;'>
+  <div style='background:#1F3864;padding:24px 28px;border-radius:12px 12px 0 0;'>
+    <h2 style='color:#fff;margin:0;font-size:20px;'>🔒 VaultFace — Relatório de Acessos</h2>
+    <p style='color:#aac4e0;margin:6px 0 0;font-size:13px;'>
+      Período: <b>{inicio:dd/MM/yyyy}</b> a <b>{fim:dd/MM/yyyy}</b>
+    </p>
+  </div>
+  <div style='background:#f7f9fc;padding:24px 28px;border-radius:0 0 12px 12px;border:1px solid #dde4ef;'>
+    <p style='margin:0 0 16px;'>Olá, <b>{nomeAdmin}</b>! Aqui está o resumo do período selecionado.</p>
+    <table width='100%' cellpadding='10' cellspacing='0'
+           style='border-collapse:collapse;border-radius:8px;overflow:hidden;'>
+      <tr style='background:#2E74B5;color:#fff;'>
+        <td style='font-size:13px;font-weight:bold;'>Indicador</td>
+        <td style='font-size:13px;font-weight:bold;text-align:right;'>Valor</td>
+      </tr>
+      <tr style='background:#fff;'>
+        <td style='border-bottom:1px solid #eee;'>✅ Total de Acessos</td>
+        <td style='border-bottom:1px solid #eee;text-align:right;font-weight:bold;'>{stats.TotalAcessos}</td>
+      </tr>
+      <tr style='background:#fef2f2;'>
+        <td style='border-bottom:1px solid #eee;'>❌ Tentativas Falhadas</td>
+        <td style='border-bottom:1px solid #eee;text-align:right;font-weight:bold;color:#dc2626;'>{stats.TentativasFalhadas}</td>
+      </tr>
+      <tr style='background:#fff;'>
+        <td style='border-bottom:1px solid #eee;'>👤 Utilizador Mais Ativo</td>
+        <td style='border-bottom:1px solid #eee;text-align:right;font-weight:bold;'>{stats.UtilizadorMaisAtivo}</td>
+      </tr>
+      <tr style='background:#f7f9fc;'>
+        <td style='border-bottom:1px solid #eee;'>🕐 Hora de Pico</td>
+        <td style='border-bottom:1px solid #eee;text-align:right;font-weight:bold;'>{stats.HoraDePico}h</td>
+      </tr>
+      <tr style='background:#fff;'>
+        <td>➕ Novos Cadastros</td>
+        <td style='text-align:right;font-weight:bold;color:#16a34a;'>{stats.TotalCadastros}</td>
+      </tr>
+    </table>
+    <p style='margin:20px 0 0;font-size:12px;color:#888;'>
+      Para o relatório completo com todos os logs detalhados, aceda ao painel de administração do VaultFace.
+    </p>
+  </div>
+</body>
+</html>";
+            await EnviarEmailAsync(emailDestino, nomeAdmin, assunto, corpo);
+        }
+
         // Envio SMTP
 
         private async Task EnviarEmailAsync(string emailDestino, string nomeDestinatario,

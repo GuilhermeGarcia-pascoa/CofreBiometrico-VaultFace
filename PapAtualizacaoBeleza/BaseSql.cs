@@ -20,6 +20,16 @@ namespace PapAtualizacaoBeleza
         public List<byte[]> Rostos { get; set; } = new List<byte[]>();
     }
 
+    // ── KPIs para a página de relatórios ─────────────────────────────────────
+    public class EstatisticasRelatorio
+    {
+        public int TotalAcessos { get; set; }
+        public int TentativasFalhadas { get; set; }
+        public string UtilizadorMaisAtivo { get; set; } = "—";
+        public int HoraDePico { get; set; }
+        public int TotalCadastros { get; set; }
+    }
+
     public class BaseSql
     {
         private string _caminhoBancoAtual;
@@ -801,6 +811,106 @@ namespace PapAtualizacaoBeleza
             // LOG: Registro de exclusão
             RegistrarLog("Sistema", "Exclusão", $"Usuário ID {usuarioId} e todos os seus dados vinculados foram removidos.");
         }
+
+        #endregion
+
+        #region Relatórios
+
+        // ── Método auxiliar privado — evita repetição de código nas queries ──────
+        private T ExecutarScalarApp<T>(string sql, DateTime inicio, DateTime fim)
+        {
+            using SqlConnection conn = new(_connectionStringAppData);
+            conn.Open();
+            using SqlCommand cmd = new(sql, conn);
+            cmd.Parameters.AddWithValue("@i", inicio);
+            cmd.Parameters.AddWithValue("@f", fim);
+            var r = cmd.ExecuteScalar();
+            return (r != null && r != DBNull.Value) ? (T)Convert.ChangeType(r, typeof(T)) : default;
+        }
+
+        // Devolve todos os logs do período, do mais recente para o mais antigo.
+        // Usado pela tabela de eventos na página de relatórios.
+        public DataTable ObterLogsFiltrados(DateTime inicio, DateTime fim)
+        {
+            DataTable dt = new DataTable();
+            string sql = @"SELECT LogId, DataHora, Usuario, Acao, Detalhes
+                           FROM Logs
+                           WHERE DatabaseId = (SELECT TOP 1 DatabaseId FROM Databases ORDER BY DatabaseId DESC)
+                           AND DataHora BETWEEN @Inicio AND @Fim
+                           ORDER BY DataHora DESC";
+            using (SqlConnection conn = new(_connectionStringAppData))
+            {
+                SqlCommand cmd = new(sql, conn);
+                cmd.Parameters.AddWithValue("@Inicio", inicio);
+                cmd.Parameters.AddWithValue("@Fim", fim);
+                new SqlDataAdapter(cmd).Fill(dt);
+            }
+            return dt;
+        }
+
+        // Devolve os 5 KPIs calculados para o período.
+        // Usa os nomes de Acao exatos já gravados pela aplicação.
+        public EstatisticasRelatorio ObterEstatisticasPeriodo(DateTime inicio, DateTime fim)
+        {
+            var s = new EstatisticasRelatorio();
+
+            s.TotalAcessos = ExecutarScalarApp<int>(
+                @"SELECT COUNT(*) FROM Logs
+                  WHERE DatabaseId=(SELECT TOP 1 DatabaseId FROM Databases ORDER BY DatabaseId DESC)
+                  AND Acao='Login' AND DataHora BETWEEN @i AND @f",
+                inicio, fim);
+
+            s.TentativasFalhadas = ExecutarScalarApp<int>(
+                @"SELECT COUNT(*) FROM Logs
+                  WHERE DatabaseId=(SELECT TOP 1 DatabaseId FROM Databases ORDER BY DatabaseId DESC)
+                  AND Acao='Acesso Negado' AND DataHora BETWEEN @i AND @f",
+                inicio, fim);
+
+            s.UtilizadorMaisAtivo = ExecutarScalarApp<string>(
+                @"SELECT TOP 1 Usuario FROM Logs
+                  WHERE DatabaseId=(SELECT TOP 1 DatabaseId FROM Databases ORDER BY DatabaseId DESC)
+                  AND Acao='Login' AND DataHora BETWEEN @i AND @f
+                  GROUP BY Usuario ORDER BY COUNT(*) DESC",
+                inicio, fim) ?? "—";
+
+            s.HoraDePico = ExecutarScalarApp<int>(
+                @"SELECT TOP 1 DATEPART(HOUR,DataHora) FROM Logs
+                  WHERE DatabaseId=(SELECT TOP 1 DatabaseId FROM Databases ORDER BY DatabaseId DESC)
+                  AND Acao='Login' AND DataHora BETWEEN @i AND @f
+                  GROUP BY DATEPART(HOUR,DataHora) ORDER BY COUNT(*) DESC",
+                inicio, fim);
+
+            s.TotalCadastros = ExecutarScalarApp<int>(
+                @"SELECT COUNT(*) FROM Logs
+                  WHERE DatabaseId=(SELECT TOP 1 DatabaseId FROM Databases ORDER BY DatabaseId DESC)
+                  AND Acao='Criação de Usuário' AND DataHora BETWEEN @i AND @f",
+                inicio, fim);
+
+            return s;
+        }
+
+        // Devolve lista de (Dia, Contagem) para o gráfico de barras.
+        // Apenas conta logins bem-sucedidos agrupados por dia.
+        public List<(DateTime Dia, int Total)> ObterAcessosPorDia(DateTime inicio, DateTime fim)
+        {
+            var resultado = new List<(DateTime, int)>();
+            string sql = @"SELECT CAST(DataHora AS DATE) as Dia, COUNT(*) as Total
+                           FROM Logs
+                           WHERE DatabaseId=(SELECT TOP 1 DatabaseId FROM Databases ORDER BY DatabaseId DESC)
+                           AND Acao='Login' AND DataHora BETWEEN @i AND @f
+                           GROUP BY CAST(DataHora AS DATE)
+                           ORDER BY Dia";
+            using SqlConnection conn = new(_connectionStringAppData);
+            conn.Open();
+            using SqlCommand cmd = new(sql, conn);
+            cmd.Parameters.AddWithValue("@i", inicio);
+            cmd.Parameters.AddWithValue("@f", fim);
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+                resultado.Add((reader.GetDateTime(0), reader.GetInt32(1)));
+            return resultado;
+        }
+
         #endregion
     }
 }

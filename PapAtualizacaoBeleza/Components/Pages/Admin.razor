@@ -618,6 +618,29 @@
                 </div>
             </div>
 
+            @* Botão de acesso aos relatórios *@
+            <div class="relatorios-card">
+                <div class="relatorios-card-left">
+                    <div class="relatorios-card-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="20" height="20">
+                            <rect x="3" y="3" width="18" height="18" rx="2" />
+                            <line x1="3" y1="9" x2="21" y2="9" />
+                            <line x1="9" y1="21" x2="9" y2="9" />
+                        </svg>
+                    </div>
+                    <div>
+                        <p class="relatorios-card-title">Relatórios de Acessos</p>
+                        <p class="relatorios-card-sub">Consulte estatísticas, filtre eventos por período, veja os logs detalhados e exporte relatórios em PDF.</p>
+                    </div>
+                </div>
+                <button class="btn-relatorios" @onclick='() => Navigation.NavigateTo("/relatorios")'>
+                    Ver Relatórios
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="13" height="13">
+                        <path d="M5 12h14M12 5l7 7-7 7" />
+                    </svg>
+                </button>
+            </div>
+
             @* Alerta de aviso no topo *@
             <div class="danger-warning-banner">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="flex-shrink:0;">
@@ -1249,8 +1272,8 @@
     }
 
     /* ══════════════════════════════════════════
-               MODO CLARO (padrão)
-            ══════════════════════════════════════════ */
+                   MODO CLARO (padrão)
+                ══════════════════════════════════════════ */
     :root {
         --bg: #f0f2f5;
         --bg2: #f8f9fb;
@@ -1304,8 +1327,8 @@
     }
 
     /* ══════════════════════════════════════════
-               MODO ESCURO
-            ══════════════════════════════════════════ */
+                   MODO ESCURO
+                ══════════════════════════════════════════ */
     .dark {
         --bg: #08090c;
         --bg2: #0e1016;
@@ -1468,8 +1491,8 @@
         }
 
     /* ══════════════════════════════════════════
-               ESTILOS COMUNS
-            ══════════════════════════════════════════ */
+                   ESTILOS COMUNS
+                ══════════════════════════════════════════ */
 
     .btn-tema {
         background: none;
@@ -2757,6 +2780,84 @@
     .danger-title-main {
         color: var(--red);
     }
+
+    /* ── Cartão de Relatórios ── */
+    .relatorios-card {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        background: var(--surface);
+        border: 1px solid #2E74B5;
+        border-radius: var(--radius);
+        padding: 18px 20px;
+        margin-bottom: 16px;
+    }
+
+    .relatorios-card-left {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+    }
+
+    .relatorios-card-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 10px;
+        background: #EBF3FB;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #2E74B5;
+        flex-shrink: 0;
+    }
+
+    .dark .relatorios-card-icon {
+        background: rgba(46,116,181,0.15);
+        color: #60a5fa;
+    }
+
+    .relatorios-card-title {
+        font-size: 14px;
+        font-weight: 700;
+        color: var(--text);
+        margin: 0 0 3px;
+    }
+
+    .relatorios-card-sub {
+        font-size: 12px;
+        color: var(--dim);
+        margin: 0;
+        line-height: 1.4;
+    }
+
+    .btn-relatorios {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        padding: 9px 18px;
+        background: #2E74B5;
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: background 0.2s;
+    }
+
+        .btn-relatorios:hover {
+            background: #1F5C9A;
+        }
+
+    .dark .btn-relatorios {
+        background: #1d4ed8;
+    }
+
+        .dark .btn-relatorios:hover {
+            background: #1e40af;
+        }
 
     .danger-warning-banner {
         display: flex;
