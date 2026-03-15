@@ -173,7 +173,10 @@ namespace PapAtualizacaoBeleza
                                 Acao NVARCHAR(100),
                                 Detalhes NVARCHAR(MAX),
                                 FOREIGN KEY(DatabaseId) REFERENCES Databases(DatabaseId)
-                        );";
+                        );
+
+                    IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Databases') AND name = 'PinEmergencia')
+                        ALTER TABLE Databases ADD PinEmergencia NVARCHAR(64) NULL;";
 
                 using (SqlCommand cmd = new(sql, conexao))
                     cmd.ExecuteNonQuery();
@@ -810,6 +813,61 @@ namespace PapAtualizacaoBeleza
 
             // LOG: Registro de exclusão
             RegistrarLog("Sistema", "Exclusão", $"Usuário ID {usuarioId} e todos os seus dados vinculados foram removidos.");
+        }
+
+        #endregion
+
+        #region PIN de Emergência
+
+        // Hash SHA-256 do PIN — nunca guardar em plain text
+        private static string HashPin(string pin)
+        {
+            using var sha = System.Security.Cryptography.SHA256.Create();
+            var bytes = sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(pin.Trim()));
+            return Convert.ToHexString(bytes).ToLower();
+        }
+
+        // Define ou atualiza o PIN de emergência (guarda o hash)
+        public void DefinirPinEmergencia(string pin)
+        {
+            string hash = HashPin(pin);
+            string sql = @"UPDATE Databases SET PinEmergencia = @Hash
+                           WHERE DatabaseId = (SELECT TOP 1 DatabaseId FROM Databases ORDER BY DatabaseId DESC)";
+            using SqlConnection conn = new(_connectionStringAppData);
+            conn.Open();
+            using SqlCommand cmd = new(sql, conn);
+            cmd.Parameters.AddWithValue("@Hash", hash);
+            cmd.ExecuteNonQuery();
+        }
+
+        // Verifica o PIN introduzido — devolve true se correto
+        public bool VerificarPinEmergencia(string pin)
+        {
+            string hashIntroduzido = HashPin(pin);
+            string sql = @"SELECT PinEmergencia FROM Databases
+                           WHERE DatabaseId = (SELECT TOP 1 DatabaseId FROM Databases ORDER BY DatabaseId DESC)";
+            using SqlConnection conn = new(_connectionStringAppData);
+            conn.Open();
+            using SqlCommand cmd = new(sql, conn);
+            var resultado = cmd.ExecuteScalar()?.ToString();
+            return !string.IsNullOrEmpty(resultado) && resultado == hashIntroduzido;
+        }
+
+        // Verifica se já existe um PIN definido
+        public bool ExistePinEmergencia()
+        {
+            // Verificação segura: a coluna pode ainda não existir na BD atual
+            try
+            {
+                string sql = @"SELECT PinEmergencia FROM Databases
+                               WHERE DatabaseId = (SELECT TOP 1 DatabaseId FROM Databases ORDER BY DatabaseId DESC)";
+                using SqlConnection conn = new(_connectionStringAppData);
+                conn.Open();
+                using SqlCommand cmd = new(sql, conn);
+                var resultado = cmd.ExecuteScalar()?.ToString();
+                return !string.IsNullOrEmpty(resultado);
+            }
+            catch { return false; }
         }
 
         #endregion

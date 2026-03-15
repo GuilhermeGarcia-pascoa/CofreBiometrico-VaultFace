@@ -27,6 +27,10 @@
             a.click();
             setTimeout(function() { document.body.removeChild(a); }, 200);
         };
+        window.focusElement = function(id) {
+            var el = document.getElementById(id);
+            if (el) { el.focus(); el.select(); }
+        };
     </script>
 </body>
 

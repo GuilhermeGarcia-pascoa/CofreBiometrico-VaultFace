@@ -642,6 +642,61 @@
             </div>
 
             @* Alerta de aviso no topo *@
+            @* ── Dia 18: PIN de Emergência ── *@
+            <div class="pin-admin-card">
+                <div class="pin-admin-left">
+                    <div class="pin-admin-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="20" height="20">
+                            <rect x="3" y="11" width="18" height="11" rx="2"/>
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                            <line x1="12" y1="15" x2="12" y2="17"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <p class="pin-admin-title">PIN de Emergência</p>
+                        <p class="pin-admin-sub">PIN gerado automaticamente no primeiro cadastro. Para alterar, confirme o PIN atual.</p>
+                    </div>
+                </div>
+                <div class="pin-admin-right">
+                    @if (!_mostrarFormPin)
+                    {
+                        <span class="pin-status pin-status--ativo">● PIN ativo</span>
+                        <button class="btn-pin-admin" @onclick="() => { _mostrarFormPin = true; _pinErroAtual = false; }">
+                            Alterar PIN
+                        </button>
+                    }
+                    else
+                    {
+                        <div class="pin-form">
+                            <input class="pin-input-admin @(_pinErroAtual ? "pin-input--erro" : "")"
+                                   type="password" inputmode="numeric" maxlength="6"
+                                   placeholder="PIN atual (6 dígitos)"
+                                   @bind="_pinAtualAdmin" @bind:event="oninput" />
+                            <input class="pin-input-admin" type="password" inputmode="numeric"
+                                   maxlength="6" placeholder="Novo PIN (6 dígitos)"
+                                   @bind="_novoPinAdmin" @bind:event="oninput" />
+                            <input class="pin-input-admin" type="password" inputmode="numeric"
+                                   maxlength="6" placeholder="Confirmar novo PIN"
+                                   @bind="_confirmarPinAdmin" @bind:event="oninput" />
+                            <div class="pin-form-btns">
+                                <button class="btn-pin-guardar"
+                                        disabled="@(_pinAtualAdmin.Length < 6 || _novoPinAdmin.Length < 6 || _novoPinAdmin != _confirmarPinAdmin)"
+                                        @onclick="GuardarPin">Guardar</button>
+                                <button class="btn-pin-cancelar" @onclick="CancelarFormPin">Cancelar</button>
+                            </div>
+                            @if (_pinErroAtual)
+                            { <p class="pin-hint pin-hint--erro">PIN atual incorreto.</p> }
+                            @if (_novoPinAdmin.Length > 0 && _novoPinAdmin.Length < 6)
+                            { <p class="pin-hint">O novo PIN deve ter exatamente 6 dígitos.</p> }
+                            @if (_novoPinAdmin.Length == 6 && _confirmarPinAdmin.Length == 6 && _novoPinAdmin != _confirmarPinAdmin)
+                            { <p class="pin-hint pin-hint--erro">Os PINs não coincidem.</p> }
+                            @if (_pinGuardadoOk)
+                            { <p class="pin-hint pin-hint--ok">✓ PIN alterado com sucesso!</p> }
+                        </div>
+                    }
+                </div>
+            </div>
+
             <div class="danger-warning-banner">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="flex-shrink:0;">
                     <circle cx="12" cy="12" r="10" />
@@ -966,6 +1021,45 @@
    CODE-BEHIND
 ══════════════════════════════════════════ *@
 @code {
+
+    // ── Dia 18: PIN de Emergência ─────────────────────────────────────────────
+    private bool _mostrarFormPin = false;
+    private string _pinAtualAdmin = "";
+    private string _novoPinAdmin = "";
+    private string _confirmarPinAdmin = "";
+    private bool _pinGuardadoOk = false;
+    private bool _pinErroAtual = false;
+
+    private void GuardarPin()
+    {
+        if (!BancoService.VerificarPinEmergencia(_pinAtualAdmin))
+        {
+            _pinErroAtual = true;
+            _pinAtualAdmin = "";
+            return;
+        }
+        if (_novoPinAdmin.Length == 6 && _novoPinAdmin == _confirmarPinAdmin && _novoPinAdmin.All(char.IsDigit))
+        {
+            BancoService.DefinirPinEmergencia(_novoPinAdmin);
+            _pinGuardadoOk = true;
+            _pinAtualAdmin = _novoPinAdmin = _confirmarPinAdmin = "";
+            _pinErroAtual = false;
+            _ = Task.Delay(1500).ContinueWith(_ => InvokeAsync(() =>
+            {
+                _mostrarFormPin = false;
+                _pinGuardadoOk = false;
+                StateHasChanged();
+            }));
+        }
+    }
+
+    private void CancelarFormPin()
+    {
+        _mostrarFormPin = false;
+        _pinAtualAdmin = _novoPinAdmin = _confirmarPinAdmin = "";
+        _pinGuardadoOk = false;
+        _pinErroAtual = false;
+    }
 
     // ── Estado da UI ──────────────────────────────────────
     private string abaAtiva = "usuarios";
@@ -2858,6 +2952,59 @@
         .dark .btn-relatorios:hover {
             background: #1e40af;
         }
+
+    /* ── PIN de Emergência ── */
+    .pin-admin-card {
+        display: flex; align-items: flex-start; justify-content: space-between;
+        gap: 20px; background: var(--surface, #fff);
+        border: 1px solid var(--border, #e5e9f2);
+        border-radius: 14px; padding: 20px 24px; margin-bottom: 16px;
+    }
+    .pin-admin-left { display: flex; align-items: flex-start; gap: 14px; flex: 1; }
+    .pin-admin-icon {
+        width: 40px; height: 40px;
+        background: linear-gradient(135deg, #1F3864, #2E74B5);
+        border-radius: 10px; display: flex; align-items: center; justify-content: center;
+        color: #fff; flex-shrink: 0;
+    }
+    .pin-admin-title { font-size: 14px; font-weight: 700; margin: 0 0 4px; color: var(--text, #1a1a2e); }
+    .pin-admin-sub   { font-size: 12px; color: var(--dim, #888); margin: 0; line-height: 1.5; }
+    .pin-admin-right { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; flex-shrink: 0; }
+    .pin-status { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 20px; }
+    .pin-status--ativo { background: #dcfce7; color: #16a34a; }
+    .dark .pin-status--ativo { background: rgba(22,163,74,0.15); color: #4ade80; }
+    .btn-pin-admin {
+        background: var(--bg, #f4f6fb); border: 1px solid var(--border, #e5e9f2);
+        border-radius: 8px; padding: 7px 14px; font-size: 13px; font-weight: 600;
+        color: var(--text, #1a1a2e); cursor: pointer; transition: all 0.15s;
+    }
+    .btn-pin-admin:hover { border-color: #2E74B5; color: #2E74B5; }
+    .pin-form { display: flex; flex-direction: column; gap: 8px; align-items: flex-end; min-width: 210px; }
+    .pin-input-admin {
+        width: 100%; padding: 8px 12px;
+        border: 1.5px solid var(--border, #e5e9f2); border-radius: 8px;
+        font-size: 13px; background: var(--bg, #f4f6fb); color: var(--text, #1a1a2e);
+        outline: none; letter-spacing: 4px; text-align: center; transition: border-color 0.15s;
+    }
+    .pin-input-admin:focus { border-color: #2E74B5; background: var(--surface, #fff); }
+    .pin-input--erro { border-color: #dc2626 !important; }
+    .pin-form-btns { display: flex; gap: 8px; width: 100%; }
+    .btn-pin-guardar {
+        flex: 1; background: #1F3864; color: #fff; border: none;
+        border-radius: 8px; padding: 8px; font-size: 13px; font-weight: 700;
+        cursor: pointer; transition: opacity 0.15s;
+    }
+    .btn-pin-guardar:disabled { opacity: 0.35; cursor: not-allowed; }
+    .btn-pin-guardar:hover:not(:disabled) { opacity: 0.88; }
+    .btn-pin-cancelar {
+        flex: 1; background: transparent; border: 1px solid var(--border, #e5e9f2);
+        border-radius: 8px; padding: 8px; font-size: 13px; font-weight: 600;
+        color: var(--dim, #888); cursor: pointer; transition: all 0.15s;
+    }
+    .btn-pin-cancelar:hover { border-color: #dc2626; color: #dc2626; }
+    .pin-hint { font-size: 11px; color: var(--dim, #888); margin: 0; text-align: right; }
+    .pin-hint--erro { color: #dc2626; }
+    .pin-hint--ok   { color: #16a34a; font-weight: 600; }
 
     .danger-warning-banner {
         display: flex;
