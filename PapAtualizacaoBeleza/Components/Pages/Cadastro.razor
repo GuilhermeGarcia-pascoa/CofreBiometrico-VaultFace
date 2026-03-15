@@ -442,6 +442,25 @@
                                         <span class="progress-detail-label">@framesEstaveis / @FRAMES_PARA_CAPTURAR frames estáveis</span>
                                     </div>
                                 }
+
+                                @* Dia 19: progresso de capturas *@
+                                <div class="capturas-progresso">
+                                    <div class="capturas-label">
+                                        <span>Capturas biométricas</span>
+                                        <span class="capturas-count">@_capturaAtual / @TOTAL_CAPTURAS</span>
+                                    </div>
+                                    <div class="capturas-dots">
+                                        @for (int ci = 0; ci < TOTAL_CAPTURAS; ci++)
+                                        {
+                                            int dotIdx = ci;
+                                            <div class="captura-dot @(dotIdx < _capturaAtual ? "captura-dot--feita" : (dotIdx == _capturaAtual && salvando ? "captura-dot--ativa" : ""))"></div>
+                                        }
+                                    </div>
+                                    @if (_capturaAtual > 0 && _capturaAtual < TOTAL_CAPTURAS)
+                                    {
+                                        <p class="capturas-hint">Mude ligeiramente o ângulo do rosto</p>
+                                    }
+                                </div>
                             </div>
                         </div>
 
@@ -882,6 +901,11 @@
     private int framesEstaveis = 0;
     private bool capturaPendente = false;
 
+    // Dia 19: múltiplas capturas reais
+    private const int TOTAL_CAPTURAS = 5;
+    private int _capturaAtual = 0;
+    private bool _cadastroConcluido = false;
+
     private async Task LoopDeCaptura(CancellationToken token)
     {
         while (!token.IsCancellationRequested && cameraAtiva)
@@ -989,7 +1013,8 @@
 
                         bool deveCapturar = estadoFinal == EstadoCaptura.Estavel
                                             && !salvando
-                                            && !capturaPendente;
+                                            && !capturaPendente
+                                            && !_cadastroConcluido;
 
                         // ── THROTTLE DE RENDER ─────────────────────────────────────────
                         // Só chama StateHasChanged se o estado mudou OU passaram N frames.
@@ -1120,7 +1145,31 @@
                     }
                 });
 
+                // Dia 19: incrementar contador
+                _capturaAtual++;
+                await InvokeAsync(StateHasChanged);
+
+                if (_capturaAtual < TOTAL_CAPTURAS)
+                {
+                    // Ainda faltam capturas — reset e continuar
+                    salvando = false;
+                    capturaPendente = false;
+                    framesEstaveis = 0;
+                    estadoCaptura = EstadoCaptura.Aguardando;
+                    await InvokeAsync(StateHasChanged);
+                    return;
+                }
+
+                // Todas as capturas feitas — concluir
+                _cadastroConcluido = true;
                 nomeRegistado = nomeParaSalvar;
+
+                // Log único consolidado de registo completo
+                baseSql.RegistrarLog(
+                    "Sistema",
+                    "Criação de Usuário",
+                    $"Utilizador '{nomeParaSalvar}' registado com {TOTAL_CAPTURAS} capturas biométricas.");
+
                 PararCamera();
 
                 // Enviar email de confirmação ao user master
@@ -2784,5 +2833,39 @@
     .dark .pin-display-digit { color: #60a5fa; border-color: rgba(255,255,255,0.1); }
     .dark .pin-aviso { background: rgba(251,191,36,0.08); border-color: rgba(251,191,36,0.3); color: #fcd34d; }
     .dark .pin-aviso svg { color: #fbbf24; }
+
+    /* ── Dia 19: progresso de capturas ── */
+    .capturas-progresso {
+        background: var(--bg, #f4f6fb);
+        border: 1px solid var(--border, #e5e9f2);
+        border-radius: 12px;
+        padding: 14px 16px;
+        margin-top: 12px;
+    }
+    .capturas-label {
+        display: flex;
+        justify-content: space-between;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--dim, #888);
+        margin-bottom: 10px;
+    }
+    .capturas-count { color: #2E74B5; font-weight: 700; }
+    .capturas-dots {
+        display: flex;
+        gap: 8px;
+        justify-content: center;
+        margin-bottom: 8px;
+    }
+    .captura-dot {
+        width: 32px; height: 8px;
+        border-radius: 4px;
+        background: var(--border, #e5e9f2);
+        transition: all 0.3s ease;
+    }
+    .captura-dot--feita { background: #16a34a; }
+    .captura-dot--ativa { background: #2E74B5; animation: pulse-bar 0.8s infinite; }
+    .capturas-hint { font-size: 11px; color: #2E74B5; text-align: center; margin: 0; font-weight: 500; }
+    @@keyframes pulse-bar { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
 </style>

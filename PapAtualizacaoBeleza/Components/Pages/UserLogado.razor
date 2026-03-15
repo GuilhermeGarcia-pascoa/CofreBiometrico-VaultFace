@@ -80,7 +80,16 @@
 
             @* ── PERFIL ── *@
             <div class="panel user-panel">
-                <div class="avatar">@ObterIniciais(Estado.UsuarioAtual?.Nome)</div>
+                @if (!string.IsNullOrEmpty(_fotoPerfil))
+                {
+                    <div class="avatar avatar--foto">
+                        <img src="@_fotoPerfil" alt="Foto de perfil" class="avatar-img" />
+                    </div>
+                }
+                else
+                {
+                    <div class="avatar">@ObterIniciais(Estado.UsuarioAtual?.Nome)</div>
+                }
                 <div class="user-info">
                     <span class="greeting">Bem-vindo(a) de volta</span>
                     <h1 class="user-name">@Estado.UsuarioAtual?.Nome</h1>
@@ -321,6 +330,9 @@
 </div>
 
 @code {
+    // Dia 20: foto de perfil
+    private string? _fotoPerfil;
+
     // Estado local espelha o EstadoApp — sincronizado no OnInitialized
     private EstadoCofre estadoCofre = EstadoCofre.Fechado;
     private string? erroHardware = null;
@@ -360,6 +372,14 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // Dia 20: carregar foto de perfil em background
+        if (Estado.UsuarioAtual != null)
+        {
+            _ = Task.Run(() =>
+            {
+                _fotoPerfil = BancoService.ObterPrimeiraFotoBase64(Estado.UsuarioAtual.Nome);
+            }).ContinueWith(_ => InvokeAsync(StateHasChanged));
+        }
         if (Estado.UsuarioAtual == null)
         {
             Navigation.NavigateTo("/", replace: true);
@@ -1072,6 +1092,20 @@
         align-items: center;
         gap: 16px;
         padding: 20px 24px;
+    }
+
+    /* Dia 20: foto de perfil */
+    .avatar--foto {
+        padding: 0;
+        overflow: hidden;
+        background: none;
+    }
+    .avatar-img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: 50%;
+        display: block;
     }
 
     .avatar {

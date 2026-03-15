@@ -417,9 +417,6 @@ namespace PapAtualizacaoBeleza
 
                     int novoId = Convert.ToInt32(cmd.ExecuteScalar());
 
-                    // LOG: Registro de novo usuário
-                    RegistrarLog("Sistema", "Criação de Usuário", $"Usuário '{nome}' criado com ID {novoId}. Nível: {nivelFinal}");
-
                     return novoId;
                 }
             }
@@ -459,8 +456,7 @@ namespace PapAtualizacaoBeleza
                 }
             }
 
-            // LOG: Registro de nova face
-            RegistrarLog("Sistema", "Cadastro Facial", $"Nova biometria (ID: {fotoId}) adicionada para o usuário ID: {usuarioId}");
+
         }
 
         public void InserirUsuarioComRosto(string nome, byte[] imagemBytes, NivelPermissao permissao = NivelPermissao.Basico)
@@ -609,6 +605,46 @@ namespace PapAtualizacaoBeleza
         }
 
         #endregion
+
+        // Dia 20: devolve a primeira foto do utilizador desencriptada como base64 JPEG
+        public string? ObterPrimeiraFotoBase64(string nomeUtilizador)
+        {
+            try
+            {
+                int uid = ObterUsuarioIdPorNome(nomeUtilizador);
+                if (uid == 0) return null;
+
+                int fotoId;
+                byte[] rostoCripto;
+                using (SqlConnection conn = new(_connectionStringAtual))
+                {
+                    conn.Open();
+                    string sql = "SELECT TOP 1 FotoId, Rosto FROM Rostos WHERE UsuarioId = @Uid ORDER BY FotoId DESC";
+                    using SqlCommand cmd = new(sql, conn);
+                    cmd.Parameters.AddWithValue("@Uid", uid);
+                    using SqlDataReader r = cmd.ExecuteReader();
+                    if (!r.Read()) return null;
+                    fotoId = r.GetInt32(0);
+                    rostoCripto = (byte[])r["Rosto"];
+                }
+
+                byte[] chaveAleatoria;
+                using (SqlConnection connApp = new(_connectionStringAppData))
+                {
+                    connApp.Open();
+                    string sqlChave = "SELECT TOP 1 ChaveCriptografada FROM ChavesFotos WHERE FotoId = @FotoId ORDER BY ChaveId DESC";
+                    using SqlCommand cmdChave = new(sqlChave, connApp);
+                    cmdChave.Parameters.AddWithValue("@FotoId", fotoId);
+                    var resultado = cmdChave.ExecuteScalar();
+                    if (resultado == null || resultado == DBNull.Value) return null;
+                    chaveAleatoria = DescriptografarComChaveFixa((byte[])resultado);
+                }
+
+                byte[] fotoBytes = DescriptografarComChave(rostoCripto, chaveAleatoria);
+                return "data:image/jpeg;base64," + Convert.ToBase64String(fotoBytes);
+            }
+            catch { return null; }
+        }
 
         #region Criptografia
 
