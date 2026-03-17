@@ -876,25 +876,21 @@
                                     _ultimoLabelDetectado = -1;
                                     statusMensagem = "Pronto para reconhecimento";
 
-                                    // Dia 14: gravar Acesso Negado (1x por episódio, não por frame)
+                                    // Só conta tentativa falhada 1x por episódio (não por frame)
                                     if (!_acessoNegadoGravado)
                                     {
-                                        BancoService.RegistrarLog(
-                                            "Desconhecido",
-                                            "Acesso Negado",
-                                            "Rosto não reconhecido ou score insuficiente.");
                                         _acessoNegadoGravado = true;
-
-                                        // Dia 16: contar tentativas e bloquear após MAX_TENTATIVAS
                                         _tentativasFalhadas++;
+
                                         if (_tentativasFalhadas >= MAX_TENTATIVAS)
                                         {
+                                            // Só agora vai para as logs — bloqueio efetivo
                                             _bloqueadoAte = DateTime.Now.AddMinutes(BLOQUEIO_MINUTOS);
                                             _tentativasFalhadas = 0;
                                             BancoService.RegistrarLog(
                                                 "Sistema",
-                                                "Bloqueio Temporário",
-                                                $"Acesso bloqueado por {BLOQUEIO_MINUTOS} minutos após {MAX_TENTATIVAS} tentativas falhadas.");
+                                                "Acesso Negado",
+                                                $"Acesso bloqueado por {BLOQUEIO_MINUTOS} minutos após {MAX_TENTATIVAS} tentativas falhadas consecutivas.");
                                             IniciarTimerBloqueio();
                                             PararCamera();
                                             _ = InvokeAsync(StateHasChanged);
@@ -940,17 +936,20 @@
             "Login",
             $"Acesso concedido via reconhecimento facial. Score: {scoreAcumulado:F2}");
 
-        // Dia 15: enviar email de notificação ao AdminSupremo (fire-and-forget)
+        // Dia 15: enviar email só se Admin tiver a opção ativa
         _ = Task.Run(async () =>
         {
             try
             {
-                var (emailAdmin, _) = BancoService.ObterEmailUserMaster();
-                if (!string.IsNullOrEmpty(emailAdmin))
-                    await EmailSvc.EnviarNotificacaoAcessoAsync(
-                        emailAdmin, usuario.Nome, DateTime.Now);
+                if (BancoService.ObterEmailNotificacoes())
+                {
+                    var (emailAdmin, _) = BancoService.ObterEmailUserMaster();
+                    if (!string.IsNullOrEmpty(emailAdmin))
+                        await EmailSvc.EnviarNotificacaoAcessoAsync(
+                            emailAdmin, usuario.Nome, DateTime.Now);
+                }
             }
-            catch { /* não bloquear o login se o email falhar */ }
+            catch { }
         });
 
         // Dia 16: reset do contador de tentativas ao fazer login com sucesso

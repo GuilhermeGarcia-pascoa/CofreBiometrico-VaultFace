@@ -176,7 +176,9 @@ namespace PapAtualizacaoBeleza
                         );
 
                     IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Databases') AND name = 'PinEmergencia')
-                        ALTER TABLE Databases ADD PinEmergencia NVARCHAR(64) NULL;";
+                        ALTER TABLE Databases ADD PinEmergencia NVARCHAR(64) NULL;
+                    IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Databases') AND name = 'EmailNotificacoes')
+                        ALTER TABLE Databases ADD EmailNotificacoes BIT NOT NULL DEFAULT 1;";
 
                 using (SqlCommand cmd = new(sql, conexao))
                     cmd.ExecuteNonQuery();
@@ -644,6 +646,66 @@ namespace PapAtualizacaoBeleza
                 return "data:image/jpeg;base64," + Convert.ToBase64String(fotoBytes);
             }
             catch { return null; }
+        }
+
+        // Dia 23: apaga todas as biometrias de um utilizador (sem apagar a conta)
+        public void LimparRostosUtilizador(int usuarioId)
+        {
+            var fotoIds = new List<int>();
+            using (SqlConnection conn = new(_connectionStringAtual))
+            {
+                conn.Open();
+                using SqlCommand cmd = new("SELECT FotoId FROM Rostos WHERE UsuarioId = @Uid", conn);
+                cmd.Parameters.AddWithValue("@Uid", usuarioId);
+                using var reader = cmd.ExecuteReader();
+                while (reader.Read()) fotoIds.Add(reader.GetInt32(0));
+            }
+
+            if (fotoIds.Count > 0)
+            {
+                string ids = string.Join(",", fotoIds);
+                using SqlConnection connApp = new(_connectionStringAppData);
+                connApp.Open();
+                using SqlCommand cmd = new($"DELETE FROM ChavesFotos WHERE FotoId IN ({ids})", connApp);
+                cmd.ExecuteNonQuery();
+            }
+
+            using (SqlConnection conn = new(_connectionStringAtual))
+            {
+                conn.Open();
+                using SqlCommand cmd = new("DELETE FROM Rostos WHERE UsuarioId = @Uid", conn);
+                cmd.Parameters.AddWithValue("@Uid", usuarioId);
+                cmd.ExecuteNonQuery();
+            }
+        }
+
+        // Preferência de email de notificação (Admin pode ligar/desligar)
+        public bool ObterEmailNotificacoes()
+        {
+            try
+            {
+                using SqlConnection conn = new(_connectionStringAppData);
+                conn.Open();
+                var val = new SqlCommand(
+                    "SELECT TOP 1 ISNULL(EmailNotificacoes, 1) FROM Databases ORDER BY DatabaseId DESC",
+                    conn).ExecuteScalar();
+                return val != null && Convert.ToBoolean(val);
+            }
+            catch { return true; }
+        }
+
+        public void DefinirEmailNotificacoes(bool ativo)
+        {
+            try
+            {
+                using SqlConnection conn = new(_connectionStringAppData);
+                conn.Open();
+                string sql = "UPDATE Databases SET EmailNotificacoes = @v WHERE DatabaseId = (SELECT TOP 1 DatabaseId FROM Databases ORDER BY DatabaseId DESC)";
+                using SqlCommand cmd = new(sql, conn);
+                cmd.Parameters.AddWithValue("@v", ativo ? 1 : 0);
+                cmd.ExecuteNonQuery();
+            }
+            catch { }
         }
 
         #region Criptografia

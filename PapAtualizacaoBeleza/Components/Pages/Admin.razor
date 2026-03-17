@@ -128,12 +128,10 @@
                     @onclick="@(() => MudarAba("dangerzone"))">
                 <div class="nav-icon-wrap">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="18" height="18">
-                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                        <line x1="12" y1="9" x2="12" y2="13" />
-                        <line x1="12" y1="17" x2="12.01" y2="17" />
+                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
                     </svg>
                 </div>
-                <span class="nav-label">Zona Restrita</span>
+                <span class="nav-label">Área Master</span>
             </button>
         }
 
@@ -643,15 +641,8 @@
 
             <div class="section-header">
                 <div>
-                    <h1 class="section-title danger-title-main">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20" style="vertical-align:-3px;margin-right:6px;">
-                            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                            <line x1="12" y1="9" x2="12" y2="13" />
-                            <line x1="12" y1="17" x2="12.01" y2="17" />
-                        </svg>
-                        Zona Restrita
-                    </h1>
-                    <p class="section-sub">Ações irreversíveis exclusivas do Administrador Master.</p>
+                    <h1 class="section-title">Área Master</h1>
+                    <p class="section-sub">Configurações e ferramentas exclusivas do Administrador Master.</p>
                 </div>
             </div>
 
@@ -734,13 +725,37 @@
                 </div>
             </div>
 
-            <div class="danger-warning-banner">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="flex-shrink:0;">
-                    <circle cx="12" cy="12" r="10" />
-                    <line x1="12" y1="8" x2="12" y2="12" />
-                    <line x1="12" y1="16" x2="12.01" y2="16" />
+            @* ── Email Notificações ── *@
+            <div class="master-card">
+                <div class="master-card-left">
+                    <div class="master-card-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="20" height="20">
+                            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                            <polyline points="22,6 12,13 2,6"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <p class="master-card-title">Notificações por Email</p>
+                        <p class="master-card-sub">Receber email sempre que alguém acede ao cofre com sucesso.</p>
+                    </div>
+                </div>
+                <div class="master-card-right">
+                    <button class="btn-toggle @(_emailNotificacoesAtivo ? "btn-toggle--on" : "btn-toggle--off")"
+                            @onclick="ToggleEmailNotificacoes">
+                        <span class="toggle-knob"></span>
+                    </button>
+                    <span class="toggle-label">@(_emailNotificacoesAtivo ? "Ativo" : "Inativo")</span>
+                </div>
+            </div>
+
+            @* Separador visual para as ações destrutivas *@
+            <div class="zona-risco-header">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13" style="color:var(--red);flex-shrink:0;">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                    <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
                 </svg>
-                <span>As ações desta secção são permanentes e não podem ser desfeitas. Proceda com cautela.</span>
+                <span class="zona-risco-label">Ações Irreversíveis</span>
+                <div class="zona-risco-line"></div>
             </div>
 
             @* ── Ação 1: Reset total ── *@
@@ -1086,6 +1101,15 @@
         sb.Append("</svg>"); return sb.ToString();
     }
 
+    // ── Email Notificações ────────────────────────────────────────────────────
+    private bool _emailNotificacoesAtivo = true;
+
+    private void ToggleEmailNotificacoes()
+    {
+        _emailNotificacoesAtivo = !_emailNotificacoesAtivo;
+        BancoService.DefinirEmailNotificacoes(_emailNotificacoesAtivo);
+    }
+
     // ── Dia 18: PIN de Emergência ─────────────────────────────────────────────
     private bool _mostrarFormPin = false;
     private string _pinAtualAdmin = "";
@@ -1167,6 +1191,7 @@
     private async Task CarregarDados()
     {
         await Task.Yield();
+        _emailNotificacoesAtivo = BancoService.ObterEmailNotificacoes();
         listaUsuarios = BancoService.ObterUsuariosComRostos() ?? new List<Usuario>();
         tabelaLogs = BancoService.ObterLogs() ?? new DataTable();
         var _ini = DateTime.Today.AddDays(-6);
@@ -2902,6 +2927,53 @@
             width: calc(100vw - 32px);
         }
     }
+
+    /* ── Área Master ── */
+    .master-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        padding: 20px 24px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+        margin-bottom: 12px;
+    }
+    .master-card-left { display: flex; align-items: center; gap: 16px; flex: 1; min-width: 0; }
+    .master-card-icon {
+        width: 42px; height: 42px; border-radius: 10px;
+        background: var(--blue-bg); border: 1px solid var(--blue-br); color: var(--accent);
+        display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .master-card-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+    .master-card-sub   { font-size: 13px; color: var(--muted); line-height: 1.5; max-width: 480px; }
+    .master-card-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+
+    .zona-risco-header {
+        display: flex; align-items: center; gap: 10px;
+        padding: 16px 0 8px; margin-bottom: 4px;
+        border-top: 1px solid var(--border); margin-top: 8px;
+    }
+    .zona-risco-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--red); white-space: nowrap; }
+    .zona-risco-line  { flex: 1; height: 1px; background: var(--red-br); }
+
+    .btn-toggle {
+        width: 44px; height: 24px; border-radius: 12px; border: none;
+        cursor: pointer; position: relative; transition: background 0.25s; padding: 0; flex-shrink: 0;
+    }
+    .btn-toggle--on  { background: var(--accent); }
+    .btn-toggle--off { background: var(--dim); }
+    .toggle-knob {
+        position: absolute; top: 3px; left: 3px; width: 18px; height: 18px;
+        border-radius: 50%; background: white; transition: transform 0.25s;
+        display: block; box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    }
+    .btn-toggle--on .toggle-knob  { transform: translateX(20px); }
+    .btn-toggle--off .toggle-knob { transform: translateX(0); }
+    .toggle-label { font-size: 12px; font-weight: 600; color: var(--muted); min-width: 40px; }
+    .btn-toggle--on + .toggle-label { color: var(--accent); }
 
     /* ── ZONA RESTRITA ── */
 

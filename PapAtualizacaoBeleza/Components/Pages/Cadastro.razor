@@ -645,7 +645,17 @@
         var existentes = baseSql.ObterUsuariosComRostos();
         primeiroUtilizador = existentes == null || !existentes.Any();
 
-        if (!primeiroUtilizador && !estadoApp.EhAdmin)
+        // Dia 23: permitir re-treino pelo próprio utilizador
+        bool eRetreino = estadoApp.RetreinarBiometria;
+        if (eRetreino)
+        {
+            // Pré-preencher o nome e limpar a flag
+            // NÃO apagar UsuarioAtual aqui — causaria loop de redirecionamentos
+            nomeUsuario = estadoApp.UsuarioAtual?.Nome ?? "";
+            estadoApp.RetreinarBiometria = false;
+        }
+
+        if (!primeiroUtilizador && !estadoApp.EhAdmin && !eRetreino)
         {
             Navigation.NavigateTo("/", replace: true);
             return;
@@ -1163,6 +1173,10 @@
                 // Todas as capturas feitas — concluir
                 _cadastroConcluido = true;
                 nomeRegistado = nomeParaSalvar;
+
+                // Dia 23: se foi re-treino, limpar sessão para forçar novo login
+                if (estadoApp.UsuarioAtual != null)
+                    estadoApp.UsuarioAtual = null;
 
                 // Log único consolidado de registo completo
                 baseSql.RegistrarLog(

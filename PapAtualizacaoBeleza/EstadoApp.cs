@@ -17,6 +17,9 @@
         // tipo da ação pendente de verificação
         public AcaoCritica? AcaoPendente { get; set; }
 
+        // Dia 23: flag para o Cadastro saber que é um re-treino autorizado
+        public bool RetreinarBiometria { get; set; } = false;
+
         // id do novo master (só usado quando AcaoPendente == TransferirMaster)
         public int IdNovoMasterPendente { get; set; }
 

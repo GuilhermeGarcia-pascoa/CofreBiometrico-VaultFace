@@ -105,6 +105,42 @@ namespace SProjetoPapAtualizacao
 
         // ── Controlo do cofre ────────────────────────────────────────────────────
 
+        // ── Dia 24: Sensor de porta ──────────────────────────────────────────────
+        // Evento disparado quando o estado da porta muda (true=aberta, false=fechada)
+        public event Action<bool>? PortaEstadoMudou;
+
+        // Pede ao Arduino o estado atual da porta
+        public bool? LerEstadoPorta()
+        {
+            try
+            {
+                if (!_serialPort.IsOpen) return null;
+                _serialPort.DiscardInBuffer();
+                _serialPort.Write("D");
+                string resp = _serialPort.ReadLine().Trim();
+                return resp == "PORTA_ABERTA";
+            }
+            catch { return null; }
+        }
+
+        // Subscreve eventos assíncronos do Arduino (porta sensor)
+        public void SubscreverEventos()
+        {
+            _serialPort.DataReceived -= OnDadosRecebidos;
+            _serialPort.DataReceived += OnDadosRecebidos;
+        }
+
+        private void OnDadosRecebidos(object sender, SerialDataReceivedEventArgs e)
+        {
+            try
+            {
+                string linha = _serialPort.ReadLine().Trim();
+                if (linha == "PORTA_ABERTA") PortaEstadoMudou?.Invoke(true);
+                else if (linha == "PORTA_FECHADA") PortaEstadoMudou?.Invoke(false);
+            }
+            catch { }
+        }
+
         // Abre o cofre — envia 'A' e inicia o heartbeat
         public void Abrir()
         {
