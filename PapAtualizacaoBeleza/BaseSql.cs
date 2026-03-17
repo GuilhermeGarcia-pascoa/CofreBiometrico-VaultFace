@@ -89,7 +89,6 @@ namespace PapAtualizacaoBeleza
         }
 
         // IV fixo derivado da chave — não precisa de ser secreto, apenas consistente
-        private static readonly byte[] ivFixa = new byte[16]; // IV zero — simples e consistente
 
         public BaseSql()
         {
@@ -710,36 +709,39 @@ namespace PapAtualizacaoBeleza
 
         #region Criptografia
 
+        // Fix 3.2: IV aleatório por operação (16 bytes RNG), prepended ao ciphertext
         private byte[] CriptografarComChave(byte[] dados, byte[] chave)
         {
-            using (var aes = Aes.Create())
+            using var aes = Aes.Create();
+            aes.Key = chave;
+            byte[] iv = new byte[16];
+            using (var rng = RandomNumberGenerator.Create()) rng.GetBytes(iv);
+            aes.IV = iv;
+            using var ms = new MemoryStream();
+            ms.Write(iv, 0, 16); // IV nos primeiros 16 bytes
+            using (var cs = new CryptoStream(ms, aes.CreateEncryptor(), CryptoStreamMode.Write))
             {
-                aes.Key = chave;
-                aes.IV = new byte[16];
-                using (var ms = new MemoryStream())
-                using (var cs = new CryptoStream(ms, aes.CreateEncryptor(), CryptoStreamMode.Write))
-                {
-                    cs.Write(dados, 0, dados.Length);
-                    cs.FlushFinalBlock();
-                    return ms.ToArray();
-                }
+                cs.Write(dados, 0, dados.Length);
+                cs.FlushFinalBlock();
             }
+            return ms.ToArray();
         }
 
         private byte[] DescriptografarComChave(byte[] dados, byte[] chave)
         {
-            using (var aes = Aes.Create())
+            if (dados.Length < 17) throw new ArgumentException("Dados demasiado curtos para conter IV");
+            byte[] iv = dados[..16];        // extrair IV dos primeiros 16 bytes
+            byte[] ciphertext = dados[16..]; // restante é o ciphertext
+            using var aes = Aes.Create();
+            aes.Key = chave;
+            aes.IV = iv;
+            using var ms = new MemoryStream();
+            using (var cs = new CryptoStream(ms, aes.CreateDecryptor(), CryptoStreamMode.Write))
             {
-                aes.Key = chave;
-                aes.IV = new byte[16];
-                using (var ms = new MemoryStream())
-                using (var cs = new CryptoStream(ms, aes.CreateDecryptor(), CryptoStreamMode.Write))
-                {
-                    cs.Write(dados, 0, dados.Length);
-                    cs.FlushFinalBlock();
-                    return ms.ToArray();
-                }
+                cs.Write(ciphertext, 0, ciphertext.Length);
+                cs.FlushFinalBlock();
             }
+            return ms.ToArray();
         }
 
         [SupportedOSPlatform("windows")]
@@ -748,7 +750,7 @@ namespace PapAtualizacaoBeleza
             using (var aes = Aes.Create())
             {
                 aes.Key = ObterChaveMestra();
-                aes.IV = ivFixa;
+                aes.IV = new byte[16]; // IV fixo mantido para compatibilidade com registos existentes da chave-mestra
                 using (var ms = new MemoryStream())
                 using (var cs = new CryptoStream(ms, aes.CreateEncryptor(), CryptoStreamMode.Write))
                 {
@@ -765,7 +767,7 @@ namespace PapAtualizacaoBeleza
             using (var aes = Aes.Create())
             {
                 aes.Key = ObterChaveMestra();
-                aes.IV = ivFixa;
+                aes.IV = new byte[16]; // IV fixo mantido para compatibilidade com registos existentes da chave-mestra
                 using (var ms = new MemoryStream())
                 using (var cs = new CryptoStream(ms, aes.CreateDecryptor(), CryptoStreamMode.Write))
                 {

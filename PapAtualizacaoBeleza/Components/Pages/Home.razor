@@ -524,7 +524,6 @@
 
 @code {
     // BaseSql e EmailService agora injetados via DI (ver @inject no topo)
-    private BaseSql baseSql = new BaseSql();
 
     // ── Dia 18: PIN de Emergência ──────────────────────────────────────────────
     private bool _mostrarModalPin = false;
@@ -560,13 +559,16 @@
         string pin = string.Concat(_pinDigitos);
         if (pin.Length < 6) return;
 
+        // Fix 3.5: lockout do PIN de emergência
+        if (EstaPinBloqueado) return;
+
         if (BancoService.VerificarPinEmergencia(pin))
         {
+            _tentativasPinEmergencia = 0;
             var usuarios = BancoService.ObterUsuariosComRostos();
             var master = usuarios?.FirstOrDefault(u => u.Permissao == NivelPermissao.AdminSupremo);
             if (master != null)
             {
-                // Desbloquear e entrar
                 _bloqueadoAte = null;
                 _tentativasFalhadas = 0;
                 _pinBloqueioVisivel = false;
@@ -580,6 +582,12 @@
         }
         else
         {
+            _tentativasPinEmergencia++;
+            if (_tentativasPinEmergencia >= MAX_TENTATIVAS_PIN)
+            {
+                _bloqueadoPinAte = DateTime.Now.AddMinutes(BLOQUEIO_MINUTOS);
+                _tentativasPinEmergencia = 0;
+            }
             _pinErrado = true;
             _pinDigitos = new string[6];
             await JS.InvokeVoidAsync("focusElement", "bpin-0");
@@ -620,8 +628,12 @@
         string pin = string.Concat(_pinDigitos);
         if (pin.Length < 6) return;
 
+        // Fix 3.5: lockout do PIN de emergência
+        if (EstaPinBloqueado) return;
+
         if (BancoService.VerificarPinEmergencia(pin))
         {
+            _tentativasPinEmergencia = 0;
             var usuarios = BancoService.ObterUsuariosComRostos();
             var master = usuarios?.FirstOrDefault(u => u.Permissao == NivelPermissao.AdminSupremo);
             if (master != null)
@@ -637,6 +649,12 @@
         }
         else
         {
+            _tentativasPinEmergencia++;
+            if (_tentativasPinEmergencia >= MAX_TENTATIVAS_PIN)
+            {
+                _bloqueadoPinAte = DateTime.Now.AddMinutes(BLOQUEIO_MINUTOS);
+                _tentativasPinEmergencia = 0;
+            }
             _pinErrado = true;
             _pinDigitos = new string[6];
             await JS.InvokeVoidAsync("focusElement", "pin-0");
@@ -678,6 +696,15 @@
     private const double SCORE_PARA_LOGIN = 2.5;  // ajustado para 1 captura no cadastro
     private const double SCORE_GANHO_MAX = 1.0;  // ganho máximo por frame positivo
     private const double SCORE_PERDA = 0.3;  // perda por frame negativo (assimétrico)
+
+    // ── 3.5 Fix: Lockout do PIN de Emergência ───────────────────────────────
+    private int _tentativasPinEmergencia = 0;
+    private const int MAX_TENTATIVAS_PIN = 3;
+    private DateTime? _bloqueadoPinAte = null;
+    private bool EstaPinBloqueado => _bloqueadoPinAte.HasValue && DateTime.Now < _bloqueadoPinAte.Value;
+    private string TempoBloqueioPin => _bloqueadoPinAte.HasValue
+        ? $"{Math.Max(0, (int)(_bloqueadoPinAte.Value - DateTime.Now).TotalSeconds)}s"
+        : "0s";
 
     // ── Anti-spoofing simplificado ────────────────────────────────────────────
     // Só reset de score quando muda de utilizador — sem histórico obrigatório
@@ -732,7 +759,7 @@
     {
         try
         {
-            var usuarios = baseSql.ObterUsuariosComRostos();
+            var usuarios = BancoService.ObterUsuariosComRostos();
             if (usuarios == null || !usuarios.Any()) { iaTreinada = false; return; }
 
             using VectorOfMat faces = new();
@@ -1008,13 +1035,13 @@
         return "data:image/jpeg;base64," + Convert.ToBase64String(vb.ToArray());
     }
 
-    private void PararCamera()
+    private async Task PararCamera()
     {
         cameraAtiva = false;
         cts?.Cancel();
         cts?.Dispose();
         cts = null;
-        Thread.Sleep(150);
+        await Task.Delay(150);
         lock (frameLock)
         {
             camera?.Dispose();

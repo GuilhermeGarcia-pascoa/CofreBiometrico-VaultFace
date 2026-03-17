@@ -747,12 +747,16 @@
     }
     .btn-filtro:hover { background: var(--bg); color: var(--text); }
     .btn-filtro.ativo {
-        background: var(--text);
+        background: var(--accent);
         color: white;
         border-color: transparent;
-        box-shadow: 0 4px 16px rgba(17,19,24,0.18);
+        box-shadow: 0 2px 10px var(--accent-glow);
     }
-    .dark .btn-filtro.ativo { box-shadow: 0 4px 16px rgba(79,116,249,0.3); }
+    .dark .btn-filtro.ativo {
+        background: var(--accent);
+        color: white;
+        box-shadow: 0 2px 12px rgba(79,116,249,0.35);
+    }
 
     .custom-range {
         display: flex;
@@ -1067,3 +1071,4 @@
         .acao-badge { border: 1px solid #ccc; background: transparent !important; color: black !important; }
     }
 </style>
+

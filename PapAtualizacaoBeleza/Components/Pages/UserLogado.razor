@@ -75,31 +75,37 @@
         </div>
     </header>
 
-    <main class="center">
-        <div class="card-stack">
+    <main class="ul-main">
+        <div class="ul-grid">
 
-            @* ── PERFIL ── *@
-            <div class="panel user-panel">
-                @if (!string.IsNullOrEmpty(_fotoPerfil))
-                {
-                    <div class="avatar avatar--foto">
-                        <img src="@_fotoPerfil" alt="Foto de perfil" class="avatar-img" />
+            @* ══ COLUNA ESQUERDA — Perfil + Cofre ══ *@
+            <div class="ul-col-left">
+
+                @* ── Perfil ── *@
+                <div class="ul-card ul-profile-card">
+                    <div class="ul-avatar-wrap">
+                        @if (!string.IsNullOrEmpty(_fotoPerfil))
+                        {
+                            <div class="ul-avatar ul-avatar--foto">
+                                <img src="@_fotoPerfil" alt="Foto de perfil" class="ul-avatar-img" />
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="ul-avatar">@ObterIniciais(Estado.UsuarioAtual?.Nome)</div>
+                        }
+                        <div class="ul-avatar-info">
+                            <span class="ul-greeting">Bem-vindo(a) de volta</span>
+                            <h1 class="ul-name">@Estado.UsuarioAtual?.Nome</h1>
+                            <span class="ul-role @(Estado.EhAdmin ? "ul-role--admin" : "ul-role--user")">
+                                @(Estado.EhAdmin ? "Administrador" : "Membro")
+                            </span>
+                        </div>
                     </div>
-                }
-                else
-                {
-                    <div class="avatar">@ObterIniciais(Estado.UsuarioAtual?.Nome)</div>
-                }
-                <div class="user-info">
-                    <span class="greeting">Bem-vindo(a) de volta</span>
-                    <h1 class="user-name">@Estado.UsuarioAtual?.Nome</h1>
-                    <span class="role-badge @(Estado.EhAdmin ? "badge-admin" : "badge-user")">
-                        @(Estado.EhAdmin ? "Administrador" : "Membro")
-                    </span>
                 </div>
-            </div>
 
-            @* ── COFRE ── *@
+                @* ── Cofre ── *@
+                @* ── COFRE ── *@
             <div class="panel safe-panel @SafePanelClass()">
 
                 @* Roda do cofre *@
@@ -110,7 +116,7 @@
                         @for (int i = 0; i < 60; i++)
                         {
                             string tickClass = (i % 5 == 0) ? "ring-tick ring-tick--major" : "ring-tick ring-tick--minor";
-                            <div class="@tickClass" style="transform: rotate(@(i * 6)deg) translateY(-70px)"></div>
+                            <div class="@tickClass" style="transform: rotate(@(i * 6)deg) translateY(2px)"></div>
                         }
                     </div>
 
@@ -166,18 +172,6 @@
                     <p class="safe-label">Estado do Cofre</p>
                     <p class="safe-status @SafeStatusClass()">@TextoEstado()</p>
                 </div>
-
-                @* ── Dia 24: Estado da porta ── *@
-                @if (arduinoConectado && _portaAberta.HasValue)
-                {
-                    <div class="porta-status @(_portaAberta.Value ? "porta-status--aberta" : "porta-status--fechada")">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14">
-                            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-                            <polyline points="9 22 9 12 15 12 15 22"/>
-                        </svg>
-                        Porta @(_portaAberta.Value ? "aberta" : "fechada")
-                    </div>
-                }
 
                 @* Indicador de estado do Arduino *@
                 @if (aDetectarArduino)
@@ -273,133 +267,136 @@
                 </button>
             </div>
 
-            @* ── ADMIN ── *@
-            @if (Estado.EhAdmin)
-            {
-                <button class="panel admin-panel"
-                        @onclick="IrParaAdmin"
-                        disabled="@BloqueadoPorTransicao()">
-                    <div class="admin-left">
-                        <div class="admin-icon">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                @* ── Admin ── *@
+                @if (Estado.EhAdmin)
+                {
+                    @* ── ADMIN ── *@
+                @if (Estado.EhAdmin)
+                {
+                    <button class="panel admin-panel"
+                                @onclick="IrParaAdmin"
+                                disabled="@BloqueadoPorTransicao()">
+                        <div class="admin-left">
+                                <div class="admin-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <p class="admin-title">Painel Administrativo</p>
+                                    <p class="admin-sub">Gerir utilizadores e registos de acesso</p>
+                                </div>
+                        </div>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" class="admin-arrow">
+                                <path d="M9 18l6-6-6-6" />
+                        </svg>
+                    </button>
+                }
+                }
+
+            </div>
+
+            @* ══ COLUNA DIREITA — Histórico + Re-treino ══ *@
+            <div class="ul-col-right">
+
+                @* ── Re-treino de Biometria ── *@
+                <div class="ul-card ul-retreino-card">
+                    <div class="ul-section-header">
+                        <div class="ul-section-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="18" height="18">
+                                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                                <circle cx="12" cy="13" r="4"/>
                             </svg>
                         </div>
                         <div>
-                            <p class="admin-title">Painel Administrativo</p>
-                            <p class="admin-sub">Gerir utilizadores e registos de acesso</p>
+                            <p class="ul-section-title">Biometria Facial</p>
+                            <p class="ul-section-sub">Refaça o registo se tiver dificuldades de acesso.</p>
                         </div>
                     </div>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" class="admin-arrow">
-                        <path d="M9 18l6-6-6-6" />
-                    </svg>
-                </button>
-            }
-
-            @* ── Dia 23: Re-treino de Biometria ── *@
-            <div class="panel retreino-panel">
-                <div class="retreino-header">
-                    <div class="retreino-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="20" height="20">
-                            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-                            <circle cx="12" cy="13" r="4"/>
-                        </svg>
-                    </div>
-                    <div>
-                        <h3 class="retreino-titulo">Atualizar Biometria</h3>
-                        <p class="retreino-sub">Refaça o reconhecimento facial se tiver dificuldades de acesso.</p>
-                    </div>
-                </div>
-
-                @if (_retreinoEstado == "idle")
-                {
-                    <button class="btn-retreino" @onclick="IniciarRetreino">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-                            <polyline points="1 4 1 10 7 10"/>
-                            <path d="M3.51 15a9 9 0 1 0 .49-4.51"/>
-                        </svg>
-                        Atualizar biometria
-                    </button>
-                }
-                else if (_retreinoEstado == "confirmar")
-                {
-                    <div class="retreino-confirmar">
-                        <p class="retreino-aviso">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-                                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                    @if (_retreinoEstado == "idle")
+                    {
+                        <button class="ul-btn-retreino" @onclick="IniciarRetreino">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                                <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.51"/>
                             </svg>
-                            As biometrias atuais serão apagadas. Irás para o cadastro para registar novas capturas.
-                        </p>
-                        <div class="retreino-btns">
-                            <button class="btn-retreino btn-retreino--confirm" @onclick="ConfirmarRetreino">Confirmar</button>
-                            <button class="btn-retreino btn-retreino--cancel" @onclick="CancelarRetreino">Cancelar</button>
+                            Atualizar biometria
+                        </button>
+                    }
+                    else if (_retreinoEstado == "confirmar")
+                    {
+                        <div class="ul-retreino-confirm">
+                            <p class="ul-retreino-aviso">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                                    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                                </svg>
+                                As biometrias atuais serão apagadas.
+                            </p>
+                            <div class="ul-retreino-btns">
+                                <button class="ul-btn-retreino ul-btn-retreino--confirm" @onclick="ConfirmarRetreino">Confirmar</button>
+                                <button class="ul-btn-retreino ul-btn-retreino--cancel" @onclick="CancelarRetreino">Cancelar</button>
+                            </div>
+                        </div>
+                    }
+                    else if (_retreinoEstado == "aguardar")
+                    {
+                        <div class="ul-retreino-aguardar">
+                            <div class="ul-retreino-spinner"></div>
+                            <span>A preparar...</span>
+                        </div>
+                    }
+                </div>
+
+                @* ── Histórico de Acessos ── *@
+                <div class="ul-card ul-hist-card">
+                    <div class="ul-section-header">
+                        <div class="ul-section-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="18" height="18">
+                                <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="ul-section-title">Últimos Acessos</p>
+                            <p class="ul-section-sub">Histórico de atividade da sua conta.</p>
                         </div>
                     </div>
-                }
-                else if (_retreinoEstado == "aguardar")
-                {
-                    <div class="retreino-aguardar">
-                        <div class="retreino-spinner"></div>
-                        <span>A preparar...</span>
-                    </div>
-                }
-            </div>
-
-            @* ── Dia 17: HISTÓRICO DE ACESSOS ── *@
-            <div class="panel historico-panel">
-                <div class="historico-header">
-                    <div class="historico-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="20" height="20">
-                            <circle cx="12" cy="12" r="10" />
-                            <polyline points="12 6 12 12 16 14" />
-                        </svg>
-                    </div>
-                    <h3 class="historico-titulo">Os meus últimos acessos</h3>
-                </div>
-                @if (_historico == null || _historico.Rows.Count == 0)
-                {
-                    <p class="historico-empty">Sem registos de acesso anteriores.</p>
-                }
-                else
-                {
-                    <div class="historico-table-wrap">
-                        <table class="historico-table">
-                            <thead>
-                                <tr>
-                                    <th>Data / Hora</th>
-                                    <th>Ação</th>
-                                    <th>Detalhes</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (System.Data.DataRow row in _historico.Rows)
-                                {
-                                    <tr class="@GetCorHistorico(row["Acao"]?.ToString())">
-                                        <td class="hist-data">@Convert.ToDateTime(row["DataHora"]).ToString("dd/MM/yyyy HH:mm")</td>
-                                        <td><span class="hist-badge @GetBadgeHistorico(row["Acao"]?.ToString())">@row["Acao"]</span></td>
-                                        <td class="hist-det">@row["Detalhes"]</td>
+                    @if (_historico == null || _historico.Rows.Count == 0)
+                    {
+                        <p class="ul-hist-empty">Sem registos de acesso anteriores.</p>
+                    }
+                    else
+                    {
+                        <div class="ul-hist-wrap">
+                            <table class="ul-hist-table">
+                                <thead>
+                                    <tr>
+                                        <th>Data / Hora</th>
+                                        <th>Ação</th>
+                                        <th>Detalhes</th>
                                     </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                }
-            </div>
+                                </thead>
+                                <tbody>
+                                    @foreach (System.Data.DataRow row in _historico.Rows)
+                                    {
+                                        <tr class="@GetCorHistorico(row["Acao"]?.ToString())">
+                                            <td class="ul-hist-data">@Convert.ToDateTime(row["DataHora"]).ToString("dd/MM HH:mm")</td>
+                                            <td><span class="ul-hist-badge @GetBadgeHistorico(row["Acao"]?.ToString())">@row["Acao"]</span></td>
+                                            <td class="ul-hist-det">@row["Detalhes"]</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
 
+            </div>
         </div>
     </main>
 </div>
 
 @code {
-    // Dia 20: foto de perfil
-    private string? _fotoPerfil;
-
-    // Dia 23: re-treino de biometria
+    // Re-treino de biometria
     private string _retreinoEstado = "idle";
-
-    // Dia 24: sensor de porta
-    private bool? _portaAberta = null; // idle | confirmar | aguardar
-
     private void IniciarRetreino() => _retreinoEstado = "confirmar";
     private void CancelarRetreino() => _retreinoEstado = "idle";
 
@@ -408,30 +405,22 @@
         _retreinoEstado = "aguardar";
         StateHasChanged();
         await Task.Delay(300);
-
         try
         {
-            // Apagar biometrias
             int uid = BancoService.ObterUsuarioIdPorNome(Estado.UsuarioAtual!.Nome);
             if (uid > 0)
             {
                 BancoService.LimparRostosUtilizador(uid);
-                BancoService.RegistrarLog(
-                    Estado.UsuarioAtual.Nome,
-                    "Re-treino",
-                    "Utilizador apagou biometrias para novo registo.");
+                BancoService.RegistrarLog(Estado.UsuarioAtual.Nome, "Re-treino", "Utilizador apagou biometrias para novo registo.");
             }
-
-            // Sinalizar ao Cadastro que é um re-treino autorizado
-            // NÃO apagar UsuarioAtual aqui — o Cadastro precisa de EhAdmin ou da flag
             Estado.RetreinarBiometria = true;
             Navigation.NavigateTo("/cadastro", replace: true);
         }
-        catch
-        {
-            _retreinoEstado = "idle";
-        }
+        catch { _retreinoEstado = "idle"; }
     }
+
+    // Dia 20: foto de perfil
+    private string? _fotoPerfil;
 
     // Estado local espelha o EstadoApp — sincronizado no OnInitialized
     private EstadoCofre estadoCofre = EstadoCofre.Fechado;
@@ -450,9 +439,9 @@
 
     private string GetBadgeHistorico(string? acao) => acao switch
     {
-        "Login" => "badge-verde",
-        "Acesso Negado" => "badge-vermelho",
-        _ => "badge-cinza"
+        "Login" => "badge-hist-verde",
+        "Acesso Negado" => "badge-hist-vermelho",
+        _ => "badge-hist-neutro"
     };
 
     private const int DURACAO_MOTOR_MS = 2500;
@@ -778,1477 +767,236 @@
 }
 
 <style>
-    @@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap');
+    @@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@@9..40,300;9..40,400;9..40,500;9..40,600&display=swap');
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    *, *::before, *::after {
-        box-sizing: border-box;
-        margin: 0;
-        padding: 0;
-    }
-
+    /* ══ Variáveis ══ */
     :root {
-        --bg: #f0f2f5;
-        --bg2: #f8f9fb;
-        --surface: #ffffff;
-        --surface2: #f4f5f8;
-        --border: #e2e5ea;
-        --text: #111318;
-        --muted: #6b7280;
-        --dim: #9ca3af;
-        --accent: #1a56db;
-        --accent-glow: rgba(26,86,219,0.12);
-        --green: #16a34a;
-        --green-bg: #f0fdf4;
-        --green-br: #bbf7d0;
-        --red: #dc2626;
-        --red-bg: #fef2f2;
-        --red-br: #fecaca;
-        --amber: #d97706;
-        --amber-bg: #fffbeb;
-        --amber-br: #fde68a;
-        --radius: 14px;
-        --shadow: 0 4px 24px rgba(0,0,0,0.07);
-        --vault-size: 160px;
-        --vault-open-ring-bg: #f0fdf4;
-        --vault-open-ring-br: #bbf7d0;
-        --vault-open-glow: rgba(22,163,74,0.15);
-        --vault-busy-ring-bg: #fffbeb;
-        --vault-busy-ring-br: #fde68a;
-        --vault-busy-glow: rgba(217,119,6,0.15);
+        --bg: #f0f2f5; --bg2: #f8f9fb; --surface: #ffffff; --surface2: #f4f5f8;
+        --border: #e2e5ea; --text: #111318; --muted: #6b7280; --dim: #9ca3af;
+        --accent: #1a56db; --accent-glow: rgba(26,86,219,0.10);
+        --green: #16a34a; --green-bg: #f0fdf4; --green-br: #bbf7d0;
+        --red: #dc2626; --red-bg: #fef2f2; --red-br: #fecaca;
+        --amber: #d97706; --amber-bg: #fffbeb; --amber-br: #fde68a;
+        --blue-bg: #eff6ff; --blue-br: #dbeafe;
+        --radius: 14px; --shadow: 0 4px 24px rgba(0,0,0,0.07);
     }
-
     .dark {
-        --bg: #08090c;
-        --bg2: #0e1016;
-        --surface: #131620;
-        --surface2: #1b1f2e;
-        --border: #252836;
-        --text: #e6e8f0;
-        --muted: #7b82a0;
-        --dim: #454c66;
-        --accent: #4f74f9;
-        --accent-glow: rgba(79,116,249,0.18);
-        --green: #22c55e;
-        --green-bg: #071a0f;
-        --green-br: #14532d;
-        --red: #f87171;
-        --red-bg: #1a0808;
-        --red-br: #7f1d1d;
-        --amber: #fbbf24;
-        --amber-bg: #1a1000;
-        --amber-br: #78350f;
+        --bg: #08090c; --bg2: #0e1016; --surface: #131620; --surface2: #1b1f2e;
+        --border: #252836; --text: #e6e8f0; --muted: #7b82a0; --dim: #454c66;
+        --accent: #4f74f9; --accent-glow: rgba(79,116,249,0.15);
+        --green: #22c55e; --green-bg: #071a0f; --green-br: #14532d;
+        --red: #f87171; --red-bg: #1a0808; --red-br: #7f1d1d;
+        --amber: #fbbf24; --amber-bg: #1a1000; --amber-br: #78350f;
+        --blue-bg: #080f2a; --blue-br: #1e3a8a;
         --shadow: 0 8px 32px rgba(0,0,0,0.6);
-        --vault-open-ring-bg: #071a0f;
-        --vault-open-ring-br: #14532d;
-        --vault-open-glow: rgba(34,197,94,0.25);
-        --vault-busy-ring-bg: #1a1000;
-        --vault-busy-ring-br: #78350f;
-        --vault-busy-glow: rgba(251,191,36,0.25);
     }
 
-        .dark .brand-lock {
-            background: linear-gradient(135deg, var(--accent), #7b5cf6);
-            box-shadow: 0 2px 8px rgba(79,116,249,0.4);
-        }
+    body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; }
+    .page { min-height: 100vh; background: var(--bg); display: flex; flex-direction: column; }
 
-        .dark .avatar {
-            background: linear-gradient(135deg, var(--accent), #7b5cf6);
-            box-shadow: 0 2px 12px rgba(79,116,249,0.35);
-        }
-
-        .dark .badge-admin {
-            background: #080f2a;
-            border-color: #1e3a8a;
-            color: var(--accent);
-        }
-
-        .dark .badge-user {
-            background: var(--surface2);
-            border-color: var(--border);
-            color: var(--muted);
-        }
-
-        .dark .admin-icon {
-            background: #080f2a;
-            border-color: #1e3a8a;
-        }
-
-        .dark .admin-panel:hover {
-            border-color: var(--accent);
-            box-shadow: 0 0 0 3px var(--accent-glow), var(--shadow);
-            background: var(--surface2);
-        }
-
-        .dark .btn-safe--unlock {
-            background: var(--green);
-            box-shadow: 0 2px 16px rgba(34,197,94,0.3);
-        }
-
-            .dark .btn-safe--unlock:hover:not(:disabled) {
-                background: #16a34a;
-                box-shadow: 0 4px 24px rgba(34,197,94,0.45);
-            }
-
-        .dark .btn-safe--lock:hover:not(:disabled) {
-            background: var(--red-bg);
-            border-color: var(--red-br);
-            color: var(--red);
-        }
-
-        .dark .vault-center {
-            box-shadow: 0 2px 16px rgba(0,0,0,0.4);
-        }
-
-        .dark .safe-panel--open .vault-center {
-            box-shadow: 0 0 0 3px var(--vault-open-glow), 0 2px 16px rgba(0,0,0,0.4);
-        }
-
-        .dark .safe-panel--opening .vault-center, .dark .safe-panel--closing .vault-center {
-            box-shadow: 0 0 0 3px var(--vault-busy-glow), 0 2px 16px rgba(0,0,0,0.4);
-        }
-
-        .dark .safe-panel--open {
-            box-shadow: 0 0 0 2px rgba(34,197,94,0.3), 0 0 40px rgba(34,197,94,0.06), var(--shadow);
-        }
-
-        .dark .safe-panel--opening, .dark .safe-panel--closing {
-            box-shadow: 0 0 0 2px rgba(251,191,36,0.3), 0 0 40px rgba(251,191,36,0.06), var(--shadow);
-        }
-
-        .dark .safe-panel--offline {
-            box-shadow: 0 0 0 2px rgba(248,113,113,0.3), 0 0 40px rgba(248,113,113,0.06), var(--shadow);
-        }
-
-            .dark .safe-panel--offline .vault-center {
-                box-shadow: 0 0 0 3px rgba(248,113,113,0.2), 0 2px 12px rgba(0,0,0,0.2);
-            }
-
-        .dark .ring-tick--major {
-            background: var(--dim);
-            opacity: 0.9;
-        }
-
-        .dark .ring-tick--minor {
-            background: var(--border);
-            opacity: 0.45;
-        }
-
-        .dark .safe-panel--open .ring-tick--major {
-            background: var(--green);
-            box-shadow: 0 0 6px rgba(34,197,94,0.8);
-            opacity: 1;
-        }
-
-        .dark .safe-panel--open .ring-tick--minor {
-            background: var(--green);
-            box-shadow: 0 0 3px rgba(34,197,94,0.4);
-            opacity: 0.5;
-        }
-
-        .dark .safe-panel--opening .ring-tick--major, .dark .safe-panel--closing .ring-tick--major {
-            background: var(--amber);
-            box-shadow: 0 0 6px rgba(251,191,36,0.8);
-            opacity: 1;
-        }
-
-        .dark .safe-panel--opening .ring-tick--minor, .dark .safe-panel--closing .ring-tick--minor {
-            background: var(--amber);
-            box-shadow: 0 0 3px rgba(251,191,36,0.4);
-            opacity: 0.5;
-        }
-
-        .dark .vault-spinner {
-            border-color: rgba(251,191,36,0.2);
-            border-top-color: var(--amber);
-            box-shadow: 0 0 8px rgba(251,191,36,0.3);
-        }
-
-        .dark .vault-handle--open .handle-bar {
-            background: var(--green);
-            box-shadow: 0 0 6px rgba(34,197,94,0.5);
-        }
-
-        .dark .vault-handle--turning .handle-bar {
-            background: var(--amber);
-            box-shadow: 0 0 6px rgba(251,191,36,0.5);
-        }
-
-        .dark .popup-card {
-            background: var(--surface);
-            border-color: var(--border);
-        }
-
-    /* ── POPUP DE LOGOUT ── */
-    .popup-overlay {
-        position: fixed;
-        inset: 0;
-        background: rgba(0, 0, 0, 0.55);
-        backdrop-filter: blur(4px);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 1000;
-        animation: fadeIn 0.2s ease;
-    }
-
-    .popup-card {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: 16px;
-        padding: 36px 40px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 16px;
-        text-align: center;
-        box-shadow: 0 24px 64px rgba(0, 0, 0, 0.18);
-        animation: slideUp 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-        min-width: 280px;
-    }
-
-    .popup-icon {
-        width: 64px;
-        height: 64px;
-        background: var(--amber-bg);
-        border: 1px solid var(--amber-br);
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .vault-spinner-lg {
-        width: 32px;
-        height: 32px;
-        border: 3px solid var(--amber-br);
-        border-top-color: var(--amber);
-        border-radius: 50%;
-        animation: spin 0.7s linear infinite;
-    }
-
-    .popup-title {
-        font-size: 17px;
-        font-weight: 600;
-        color: var(--text);
-        letter-spacing: -0.3px;
-    }
-
-    .popup-sub {
-        font-size: 13px;
-        color: var(--muted);
-        line-height: 1.6;
-        max-width: 240px;
-    }
-
-    @@keyframes fadeIn {
-        from {
-            opacity: 0;
-        }
-
-        to {
-            opacity: 1;
-        }
-    }
-
-    @@keyframes slideUp {
-        from {
-            opacity: 0;
-            transform: translateY(16px) scale(0.97);
-        }
-
-        to {
-            opacity: 1;
-            transform: translateY(0) scale(1);
-        }
-    }
-
-    /* ── BOTÕES DESATIVADOS DURANTE TRANSIÇÃO ── */
-    .btn-logout:disabled,
-    .btn-tema:disabled,
-    .admin-panel:disabled {
-        opacity: 0.4;
-        cursor: not-allowed;
-        pointer-events: none;
-    }
-
-    /* ── (todo o resto do CSS original mantido integralmente) ── */
-
-    .btn-tema {
-        background: none;
-        border: 1px solid var(--border);
-        border-radius: 8px;
-        padding: 7px 9px;
-        cursor: pointer;
-        color: var(--muted);
-        display: flex;
-        align-items: center;
-        transition: all 0.15s;
-    }
-
-        .btn-tema:hover:not(:disabled) {
-            background: var(--surface2);
-            color: var(--text);
-        }
-
-    body {
-        font-family: 'DM Sans', sans-serif;
-        background: var(--bg);
-        color: var(--text);
-        -webkit-font-smoothing: antialiased;
-        min-height: 100vh;
-    }
-
-    .page {
-        min-height: 100vh;
-        display: flex;
-        flex-direction: column;
-        background: var(--bg);
-    }
-
+    /* ══ Topbar ══ */
     .topbar {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 18px 32px;
-        background: var(--surface);
-        border-bottom: 1px solid var(--border);
-    }
-
-    .brand {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        font-size: 16px;
-        font-weight: 600;
-        letter-spacing: -0.3px;
-        color: var(--text);
-    }
-
-    .brand-lock {
-        width: 32px;
-        height: 32px;
-        background: var(--text);
-        border-radius: 8px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: white;
-        flex-shrink: 0;
-    }
-
-        .brand-lock svg {
-            width: 16px;
-            height: 16px;
-        }
-
-    .btn-logout {
-        display: flex;
-        align-items: center;
-        gap: 7px;
-        padding: 8px 16px;
-        border: 1px solid var(--border);
-        border-radius: 8px;
-        background: transparent;
-        font-size: 13px;
-        font-weight: 500;
-        font-family: 'DM Sans', sans-serif;
-        color: var(--muted);
-        cursor: pointer;
-        transition: all 0.15s;
-    }
-
-        .btn-logout:hover:not(:disabled) {
-            border-color: var(--red);
-            color: var(--red);
-            background: var(--red-bg);
-        }
-
-    .center {
-        flex: 1;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 40px 20px;
-    }
-
-    .card-stack {
-        display: flex;
-        flex-direction: column;
-        gap: 16px;
-        width: 100%;
-        max-width: 420px;
-    }
-
-    .panel {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        box-shadow: var(--shadow);
-        overflow: hidden;
-    }
-
-    .user-panel {
-        display: flex;
-        align-items: center;
-        gap: 16px;
-        padding: 20px 24px;
-    }
-
-    /* ── Dia 24: Estado da porta ── */
-    .porta-status {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 5px 12px;
-        border-radius: 20px;
-        font-size: 12px;
-        font-weight: 600;
-        margin-top: 8px;
-    }
-    .porta-status--aberta  { background: rgba(220,38,38,0.1);  color: #dc2626; border: 1px solid rgba(220,38,38,0.2); }
-    .porta-status--fechada { background: rgba(22,163,74,0.1);  color: #16a34a; border: 1px solid rgba(22,163,74,0.2); }
-    .dark .porta-status--aberta  { background: rgba(248,113,113,0.12); color: #f87171; }
-    .dark .porta-status--fechada { background: rgba(34,197,94,0.12);  color: #4ade80; }
-
-    /* ── Dia 23: Re-treino ── */
-    .retreino-panel {
-        display: flex;
-        flex-direction: column;
-        gap: 14px;
-        padding: 20px 24px;
-    }
-    .retreino-header {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-    }
-    .retreino-icon {
-        width: 40px; height: 40px;
-        background: linear-gradient(135deg, #2E74B5, #1F3864);
-        border-radius: 10px;
-        display: flex; align-items: center; justify-content: center;
-        color: #fff; flex-shrink: 0;
-    }
-    .retreino-titulo { font-size: 14px; font-weight: 700; color: var(--text, #1a1a2e); margin: 0 0 3px; }
-    .retreino-sub    { font-size: 12px; color: var(--dim, #888); margin: 0; }
-    .btn-retreino {
-        display: inline-flex; align-items: center; gap: 7px;
-        padding: 9px 16px;
-        background: var(--bg, #f4f6fb);
-        border: 1px solid var(--border, #e5e9f2);
-        border-radius: 10px;
-        font-size: 13px; font-weight: 600;
-        color: var(--text, #1a1a2e);
-        cursor: pointer; transition: all 0.15s;
-        align-self: flex-start;
-    }
-    .btn-retreino:hover { border-color: #2E74B5; color: #2E74B5; background: rgba(46,116,181,0.06); }
-    .btn-retreino--confirm { background: #1F3864; color: #fff; border-color: #1F3864; }
-    .btn-retreino--confirm:hover { background: #2E74B5; border-color: #2E74B5; color: #fff; }
-    .btn-retreino--cancel { color: var(--dim, #888); }
-    .btn-retreino--cancel:hover { border-color: #dc2626; color: #dc2626; }
-    .retreino-confirmar { display: flex; flex-direction: column; gap: 12px; }
-    .retreino-aviso {
-        display: flex; align-items: flex-start; gap: 8px;
-        font-size: 12.5px; color: #92400e;
-        background: #fffbeb; border: 1px solid #fcd34d;
-        border-radius: 8px; padding: 10px 12px; line-height: 1.5;
-    }
-    .retreino-aviso svg { flex-shrink: 0; margin-top: 1px; color: #d97706; }
-    .retreino-btns { display: flex; gap: 8px; }
-    .retreino-aguardar { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--dim, #888); }
-    .retreino-spinner {
-        width: 16px; height: 16px;
-        border: 2px solid var(--border, #e5e9f2);
-        border-top-color: #2E74B5;
-        border-radius: 50%;
-        animation: spin 0.7s linear infinite;
-    }
-    .dark .retreino-aviso { background: rgba(251,191,36,0.08); border-color: rgba(251,191,36,0.3); color: #fcd34d; }
-    .dark .retreino-aviso svg { color: #fbbf24; }
-
-    /* Dia 20: foto de perfil */
-    .avatar--foto {
-        padding: 0;
-        overflow: hidden;
-        background: none;
-    }
-    .avatar-img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        border-radius: 50%;
-        display: block;
-    }
-
-    .avatar {
-        width: 52px;
-        height: 52px;
-        background: var(--text);
-        color: white;
-        border-radius: 14px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 18px;
-        font-weight: 600;
-        flex-shrink: 0;
-        letter-spacing: -0.5px;
-    }
-
-    .greeting {
-        font-size: 12px;
-        color: var(--muted);
-        display: block;
-        margin-bottom: 3px;
-    }
-
-    .user-name {
-        font-size: 18px;
-        font-weight: 600;
-        letter-spacing: -0.4px;
-        line-height: 1.2;
-        margin-bottom: 7px;
-        color: var(--text);
-    }
-
-    .role-badge {
-        display: inline-block;
-        font-size: 11px;
-        font-weight: 600;
-        padding: 3px 10px;
-        border-radius: 999px;
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-    }
-
-    .badge-admin {
-        background: #eff6ff;
-        color: var(--accent);
-        border: 1px solid #dbeafe;
-    }
-
-    .badge-user {
-        background: #f1f5f9;
-        color: #475569;
-        border: 1px solid #e2e8f0;
-    }
-
-    .safe-panel {
-        padding: 32px 24px 24px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 20px;
-        text-align: center;
-        transition: box-shadow 0.4s, border-color 0.4s;
-    }
-
-    .safe-panel--open {
-        box-shadow: 0 0 0 2px rgba(22,163,74,0.25), var(--shadow);
-        border-color: var(--green-br) !important;
-    }
-
-    .safe-panel--opening {
-        box-shadow: 0 0 0 2px rgba(217,119,6,0.25), var(--shadow);
-        border-color: var(--amber-br) !important;
-    }
-
-    .safe-panel--closing {
-        box-shadow: 0 0 0 2px rgba(217,119,6,0.2), var(--shadow);
-        border-color: var(--amber-br) !important;
-    }
-
-    /* Estado offline — hardware não encontrado */
-    .safe-panel--offline {
-        box-shadow: 0 0 0 2px rgba(220,38,38,0.2), var(--shadow);
-        border-color: var(--red-br) !important;
-    }
-
-        .safe-panel--offline .vault-ring--outer {
-            border-color: var(--red-br);
-            background: var(--red-bg);
-        }
-
-        .safe-panel--offline .vault-ring--mid {
-            border-color: var(--red-br);
-            opacity: 0.5;
-        }
-
-        .safe-panel--offline .ring-tick--major {
-            background: var(--red-br);
-            opacity: 0.7;
-        }
-
-        .safe-panel--offline .ring-tick--minor {
-            background: var(--red-br);
-            opacity: 0.3;
-        }
-
-        .safe-panel--offline .vault-center {
-            border-color: var(--red);
-            box-shadow: 0 0 0 3px rgba(220,38,38,0.12), 0 2px 12px rgba(0,0,0,0.08);
-        }
-
-        .safe-panel--offline .bolt {
-            background: var(--red-br);
-        }
-
-    .vault-door--offline {
-        animation: offline-slow-pulse 3s ease-in-out infinite;
-    }
-
-    @@keyframes offline-slow-pulse {
-        0%, 100% {
-            opacity: 1;
-        }
-
-        50% {
-            opacity: 0.55;
-        }
-    }
-
-    /* Ícone de desconexão no centro do cofre */
-    .vault-symbol-offline {
-        color: var(--red);
-        animation: offline-icon-pulse 2.5s ease-in-out infinite;
-    }
-
-    @@keyframes offline-icon-pulse {
-        0%, 100% {
-            opacity: 1;
-            transform: scale(1);
-        }
-
-        50% {
-            opacity: 0.5;
-            transform: scale(0.9);
-        }
-    }
-
-    /* Texto "Sem ligação" */
-    .status-offline {
-        color: var(--red) !important;
-    }
-
-    .vault-door {
-        position: relative;
-        width: var(--vault-size);
-        height: var(--vault-size);
-        transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-
-    .vault-door--spinning-open {
-        animation: vaultSpinOpen 2.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-    }
-
-    .vault-door--spinning-close {
-        animation: vaultSpinClose 2.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-    }
-
-    .vault-door--open {
-        transform: rotate(90deg);
-    }
-
-    @@keyframes vaultSpinOpen {
-        0% {
-            transform: rotate(0deg);
-        }
-
-        20% {
-            transform: rotate(-15deg);
-        }
-
-        100% {
-            transform: rotate(90deg);
-        }
-    }
-
-    @@keyframes vaultSpinClose {
-        0% {
-            transform: rotate(90deg);
-        }
-
-        20% {
-            transform: rotate(105deg);
-        }
-
-        100% {
-            transform: rotate(0deg);
-        }
-    }
-
-    .vault-ring {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        border-radius: 50%;
-        transform: translate(-50%, -50%);
-        transition: border-color 0.4s, background 0.4s;
-    }
-
-    .vault-ring--outer {
-        width: 100%;
-        height: 100%;
-        background: var(--bg);
-        border: 2px solid var(--border);
-    }
-
-    .safe-panel--open .vault-ring--outer {
-        border-color: var(--vault-open-ring-br);
-        background: var(--vault-open-ring-bg);
-    }
-
-    .safe-panel--opening .vault-ring--outer, .safe-panel--closing .vault-ring--outer {
-        border-color: var(--vault-busy-ring-br);
-        background: var(--vault-busy-ring-bg);
-    }
-
-    .vault-ring--mid {
-        width: 76%;
-        height: 76%;
-        background: transparent;
-        border: 2px dashed var(--border);
-        opacity: 0.6;
-    }
-
-    .safe-panel--open .vault-ring--mid {
-        border-color: var(--green-br);
-    }
-
-    .safe-panel--opening .vault-ring--mid, .safe-panel--closing .vault-ring--mid {
-        border-color: var(--amber-br);
-    }
-
-    .ring-tick {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        border-radius: 3px;
-        transform-origin: center 5px;
-        transition: background 0.4s, box-shadow 0.4s, opacity 0.4s;
-    }
-
-    .ring-tick--major {
-        width: 2.5px;
-        height: 10px;
-        background: var(--dim);
-        margin-left: -1.25px;
-        margin-top: -5px;
-        opacity: 1;
-    }
-
-    .ring-tick--minor {
-        width: 1.5px;
-        height: 5px;
-        background: var(--border);
-        margin-left: -0.75px;
-        margin-top: -5px;
-        opacity: 0.55;
-    }
-
-    .safe-panel--open .ring-tick--major {
-        background: var(--green);
-        opacity: 1;
-    }
-
-    .safe-panel--open .ring-tick--minor {
-        background: var(--green-br);
-        opacity: 0.6;
-    }
-
-    .safe-panel--opening .ring-tick--major, .safe-panel--closing .ring-tick--major {
-        background: var(--amber);
-        opacity: 1;
-    }
-
-    .safe-panel--opening .ring-tick--minor, .safe-panel--closing .ring-tick--minor {
-        background: var(--amber-br);
-        opacity: 0.6;
-    }
-
-    .vault-center {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        width: 54%;
-        height: 54%;
-        background: var(--surface);
-        border: 2px solid var(--border);
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: border-color 0.4s, box-shadow 0.4s;
-        box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-    }
-
-    .safe-panel--open .vault-center {
-        border-color: var(--green);
-        box-shadow: 0 0 0 3px var(--vault-open-glow), 0 2px 12px rgba(0,0,0,0.08);
-    }
-
-    .safe-panel--opening .vault-center, .safe-panel--closing .vault-center {
-        border-color: var(--amber);
-        box-shadow: 0 0 0 3px var(--vault-busy-glow), 0 2px 12px rgba(0,0,0,0.08);
-    }
-
-    .vault-symbol {
-        color: var(--muted);
-        transition: color 0.3s;
-    }
-
-    .safe-panel--open .vault-symbol {
-        color: var(--green);
-    }
-
-    .safe-panel--opening .vault-symbol, .safe-panel--closing .vault-symbol {
-        color: var(--amber);
-    }
-
-    .bolt {
-        position: absolute;
-        width: 8px;
-        height: 8px;
-        background: var(--border);
-        border-radius: 50%;
-        transition: background 0.4s, box-shadow 0.4s;
-    }
-
-    .bolt--tl {
-        top: 8px;
-        left: 8px;
-    }
-
-    .bolt--tr {
-        top: 8px;
-        right: 8px;
-    }
-
-    .bolt--bl {
-        bottom: 8px;
-        left: 8px;
-    }
-
-    .bolt--br {
-        bottom: 8px;
-        right: 8px;
-    }
-
-    .safe-panel--open .bolt {
-        background: var(--green-br);
-    }
-
-    .safe-panel--opening .bolt, .safe-panel--closing .bolt {
-        background: var(--amber-br);
-    }
-
-    .vault-handle {
-        position: absolute;
-        top: 50%;
-        right: 8px;
-        transform: translateY(-50%);
-        width: 12px;
-        height: 28px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-
-    .handle-bar {
-        background: var(--dim);
-        border-radius: 2px;
-        position: absolute;
-        transition: background 0.4s, transform 0.4s, box-shadow 0.4s;
-    }
-
-    .handle-bar--h {
-        width: 12px;
-        height: 3px;
-    }
-
-    .handle-bar--v {
-        width: 3px;
-        height: 12px;
-    }
-
-    .vault-handle--open .handle-bar {
-        background: var(--green);
-    }
-
-    .vault-handle--turning .handle-bar {
-        background: var(--amber);
-    }
-
-    .vault-spinner {
-        width: 24px;
-        height: 24px;
-        border: 2px solid var(--amber-br);
-        border-top-color: var(--amber);
-        border-radius: 50%;
-        animation: spin 0.7s linear infinite;
-    }
-
-    .safe-info {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-    }
-
-    .safe-label {
-        font-size: 11px;
-        color: var(--muted);
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        font-weight: 600;
-    }
-
-    .safe-status {
-        font-size: 22px;
-        font-weight: 600;
-        letter-spacing: -0.5px;
-        transition: color 0.3s;
-    }
-
-    .status-open {
-        color: var(--green);
-    }
-
-    .status-closed {
-        color: var(--text);
-    }
-
-    .status-transitioning {
-        color: var(--amber);
-    }
-
-    .hw-error {
-        width: 100%;
-        display: flex;
-        align-items: flex-start;
-        gap: 8px;
-        padding: 10px 12px;
-        background: var(--red-bg);
-        border: 1px solid var(--red-br);
-        border-radius: 8px;
-        font-size: 12px;
-        color: var(--red);
-    }
-
-        .hw-error span {
-            flex: 1;
-        }
-
-        .hw-error button {
-            background: none;
-            border: none;
-            color: var(--red);
-            cursor: pointer;
-            font-size: 15px;
-            opacity: 0.6;
-            padding: 0;
-        }
-
-            .hw-error button:hover {
-                opacity: 1;
-            }
-
-    /* ── Estado do Arduino ────────────────────────────────────────────────── */
-    .hw-status {
-        width: 100%;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 10px 14px;
-        border-radius: 10px;
-        font-size: 13px;
-        margin-bottom: 10px;
-        transition: all 0.3s ease;
-    }
-
-    /* Ligado */
-    .hw-status--ok {
-        background: var(--green-bg, #f0fdf4);
-        color: var(--green, #16a34a);
-        border: 1px solid var(--green-br, #bbf7d0);
-    }
-
-    .hw-status-dot--ok {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        background: #16a34a;
-        flex-shrink: 0;
-        box-shadow: 0 0 0 3px #bbf7d0;
-        animation: dot-pulse-green 2s ease-in-out infinite;
-    }
-
-    @@keyframes dot-pulse-green {
-        0%, 100% {
-            box-shadow: 0 0 0 3px #bbf7d0;
-        }
-
-        50% {
-            box-shadow: 0 0 0 6px #dcfce7;
-        }
-    }
-
-    /* A procurar */
-    .hw-status--searching {
-        background: var(--surface2);
-        color: var(--muted);
-        border: 1px solid var(--border);
-        gap: 14px;
-    }
-
-    .hw-search-anim {
-        position: relative;
-        width: 32px;
-        height: 32px;
-        flex-shrink: 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .hw-search-icon {
-        position: relative;
-        z-index: 2;
-        opacity: 0.6;
-    }
-
-    .hw-search-ring {
-        position: absolute;
-        border-radius: 50%;
-        border: 1.5px solid currentColor;
-        opacity: 0;
-        animation: search-ripple 2s ease-out infinite;
-    }
-
-    .hw-search-ring--1 {
-        width: 28px;
-        height: 28px;
-        animation-delay: 0s;
-    }
-
-    .hw-search-ring--2 {
-        width: 42px;
-        height: 42px;
-        animation-delay: 0.6s;
-    }
-
-    @@keyframes search-ripple {
-        0% {
-            opacity: 0.5;
-            transform: scale(0.6);
-        }
-
-        100% {
-            opacity: 0;
-            transform: scale(1.4);
-        }
-    }
-
-    .hw-status-label {
-        font-weight: 500;
-    }
-
-    .hw-dots span {
-        animation: blink-dot 1.4s infinite;
-        opacity: 0;
-    }
-
-        .hw-dots span:nth-child(1) {
-            animation-delay: 0s;
-        }
-
-        .hw-dots span:nth-child(2) {
-            animation-delay: 0.2s;
-        }
-
-        .hw-dots span:nth-child(3) {
-            animation-delay: 0.4s;
-        }
-
-    @@keyframes blink-dot {
-        0%, 80%, 100% {
-            opacity: 0;
-        }
-
-        40% {
-            opacity: 1;
-        }
-    }
-
-    /* Desligado */
-    .hw-status--offline {
-        background: var(--red-bg);
-        color: var(--red);
-        border: 1px solid var(--red-br);
-        gap: 12px;
-        flex-wrap: wrap;
-    }
-
-    .hw-offline-anim {
-        flex-shrink: 0;
-        animation: offline-shake 3s ease-in-out infinite;
-    }
-
-    @@keyframes offline-shake {
-        0%, 85%, 100% {
-            transform: translateX(0);
-        }
-
-        88% {
-            transform: translateX(-3px);
-        }
-
-        91% {
-            transform: translateX(3px);
-        }
-
-        94% {
-            transform: translateX(-2px);
-        }
-
-        97% {
-            transform: translateX(2px);
-        }
-    }
-
-    .hw-offline-icon {
-        opacity: 0.85;
-    }
-
-    .hw-offline-text {
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-        flex: 1;
-        min-width: 0;
-    }
-
-    .hw-offline-title {
-        font-weight: 600;
-        font-size: 13px;
-    }
-
-    .hw-offline-sub {
-        font-size: 11px;
-        opacity: 0.75;
-    }
-
-    .btn-retry {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        padding: 6px 12px;
-        background: var(--red);
-        color: #fff;
-        border: none;
-        border-radius: 7px;
-        font-size: 12px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: opacity 0.15s, transform 0.15s;
-        white-space: nowrap;
-        flex-shrink: 0;
-    }
-
-        .btn-retry:hover {
-            opacity: 0.85;
-            transform: translateY(-1px);
-        }
-
-        .btn-retry:active {
-            opacity: 1;
-            transform: translateY(0);
-        }
-
-        .btn-retry svg {
-            transition: transform 0.4s ease;
-        }
-
-        .btn-retry:hover svg {
-            transform: rotate(-45deg);
-        }
-
-    .btn-safe {
-        width: 100%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 9px;
-        padding: 13px 20px;
-        border-radius: 10px;
-        font-size: 14px;
-        font-weight: 600;
-        font-family: 'DM Sans', sans-serif;
-        border: none;
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-
-        .btn-safe:disabled {
-            cursor: not-allowed;
-            opacity: 0.85;
-        }
-
-    .btn-safe--unlock {
-        background: var(--green);
-        color: white;
-        box-shadow: 0 2px 12px rgba(22,163,74,0.25);
-    }
-
-        .btn-safe--unlock:hover:not(:disabled) {
-            background: #15803d;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 18px rgba(22,163,74,0.35);
-        }
-
-    .btn-safe--lock {
-        background: var(--bg);
-        color: var(--text);
-        border: 1px solid var(--border);
-    }
-
-        .btn-safe--lock:hover:not(:disabled) {
-            background: var(--red-bg);
-            border-color: var(--red-br);
-            color: var(--red);
-        }
-
-    .btn-safe--busy {
-        background: var(--amber-bg);
-        color: var(--amber);
-        border: 1px solid var(--amber-br);
-    }
-
-    .btn-spinner {
-        width: 16px;
-        height: 16px;
-        border: 2px solid var(--amber-br);
-        border-top-color: var(--amber);
-        border-radius: 50%;
-        animation: spin 0.7s linear infinite;
-        flex-shrink: 0;
-    }
-
-    @@keyframes spin {
-        to {
-            transform: rotate(360deg);
-        }
-    }
-
-    /* ── Dia 17: Histórico de acessos ── */
-    .historico-panel {
-        background: var(--surface);
-        border-radius: var(--radius, 16px);
-        padding: 20px;
-        border: 1px solid var(--border, rgba(255,255,255,0.08));
-    }
-
-    .historico-header {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        margin-bottom: 14px;
-    }
-
-    .historico-icon {
-        width: 36px;
-        height: 36px;
-        border-radius: 10px;
-        background: #EBF3FB;
-        color: #2E74B5;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-shrink: 0;
-    }
-
-    .dark .historico-icon {
-        background: rgba(46,116,181,0.15);
-        color: #60a5fa;
-    }
-
-    .historico-titulo {
-        font-size: 15px;
-        font-weight: 700;
-        margin: 0;
-    }
-
-    .historico-empty {
-        font-size: 13px;
-        color: var(--dim, #888);
-        margin: 0;
-        text-align: center;
-        padding: 20px 0;
-    }
-
-    .historico-table-wrap {
-        overflow-x: auto;
-        border-radius: 8px;
-        border: 1px solid var(--border, rgba(255,255,255,0.08));
-    }
-
-    .historico-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 12px;
-    }
-
-        .historico-table th {
-            background: var(--bg, #f4f6fb);
-            padding: 8px 12px;
-            text-align: left;
-            font-size: 11px;
-            font-weight: 600;
-            color: var(--dim, #888);
-            border-bottom: 1px solid var(--border, rgba(255,255,255,0.08));
-            white-space: nowrap;
-        }
-
-        .historico-table td {
-            padding: 8px 12px;
-            border-bottom: 1px solid var(--border, rgba(255,255,255,0.05));
-            vertical-align: middle;
-        }
-
-        .historico-table tr:last-child td {
-            border-bottom: none;
-        }
-
-    .hist-verde td {
-        border-left: 3px solid #16a34a;
-    }
-
-    .hist-vermelho td {
-        border-left: 3px solid #dc2626;
-    }
-
-    .hist-data {
-        white-space: nowrap;
-        color: var(--dim, #888);
-        font-size: 11px;
-    }
-
-    .hist-det {
-        font-size: 11px;
-        color: var(--dim, #888);
-        max-width: 240px;
-    }
-
-    .hist-badge {
-        padding: 2px 8px;
-        border-radius: 10px;
-        font-size: 10px;
-        font-weight: 600;
-        white-space: nowrap;
-    }
-
-    .badge-verde {
-        background: #dcfce7;
-        color: #16a34a;
-    }
-
-    .badge-vermelho {
-        background: #fee2e2;
-        color: #dc2626;
-    }
-
-    .badge-cinza {
-        background: var(--bg, #f4f6fb);
-        color: var(--dim, #888);
-    }
-
-    .dark .badge-verde {
-        background: rgba(22,163,74,0.15);
-        color: #4ade80;
-    }
-
-    .dark .badge-vermelho {
-        background: rgba(220,38,38,0.15);
-        color: #f87171;
-    }
-
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 0 32px; height: 60px; background: var(--surface);
+        border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100;
+    }
+    .brand { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 600; letter-spacing: -0.3px; color: var(--text); }
+    .brand-lock { width: 32px; height: 32px; background: var(--text); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; }
+    .brand-lock svg { width: 16px; height: 16px; }
+    .dark .brand-lock { background: linear-gradient(135deg, var(--accent), #7b5cf6); box-shadow: 0 2px 8px rgba(79,116,249,0.4); }
+    .topbar-right { display: flex; align-items: center; gap: 12px; }
+    .btn-tema { background: none; border: 1px solid var(--border); border-radius: 8px; padding: 7px 9px; cursor: pointer; color: var(--muted); display: flex; align-items: center; transition: all 0.15s; }
+    .btn-tema:hover { background: var(--surface2); color: var(--text); }
+    .btn-logout { display: flex; align-items: center; gap: 7px; padding: 7px 14px; border: 1px solid var(--border); border-radius: 8px; background: transparent; font-size: 13px; font-weight: 500; font-family: 'DM Sans', sans-serif; color: var(--muted); cursor: pointer; transition: all 0.15s; }
+    .btn-logout:hover { border-color: var(--red); color: var(--red); background: var(--red-bg); }
+    .btn-logout:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ══ Layout grid 2 colunas ══ */
+    .ul-main { flex: 1; padding: 28px 32px 60px; max-width: 1200px; margin: 0 auto; width: 100%; }
+    .ul-grid { display: grid; grid-template-columns: 380px 1fr; gap: 20px; align-items: start; }
+    @@media (max-width: 900px) { .ul-grid { grid-template-columns: 1fr; } }
+
+    .ul-col-left { display: flex; flex-direction: column; gap: 16px; }
+    .ul-col-right { display: flex; flex-direction: column; gap: 16px; }
+
+    /* ══ Cards base ══ */
+    .ul-card {
+        background: var(--surface); border: 1px solid var(--border);
+        border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px 24px;
+    }
+
+    /* ══ Perfil ══ */
+    .ul-profile-card { padding: 22px 24px; }
+    .ul-avatar-wrap { display: flex; align-items: center; gap: 16px; }
+    .ul-avatar {
+        width: 56px; height: 56px; border-radius: 14px;
+        background: var(--text); color: white;
+        font-size: 22px; font-weight: 700;
+        display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .dark .ul-avatar { background: linear-gradient(135deg, var(--accent), #7b5cf6); }
+    .ul-avatar--foto { padding: 0; overflow: hidden; }
+    .ul-avatar-img { width: 100%; height: 100%; object-fit: cover; }
+    .ul-avatar-info { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+    .ul-greeting { font-size: 12px; color: var(--muted); }
+    .ul-name { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; color: var(--text); }
+    .ul-role { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 99px; display: inline-block; }
+    .ul-role--admin { background: var(--blue-bg); color: var(--accent); border: 1px solid var(--blue-br); }
+    .ul-role--user  { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
+
+    /* ══ Painel do cofre — mantém toda a lógica original com novos wrappers ══ */
+    .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 24px; }
+    .safe-panel { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 28px 24px; transition: border-color 0.4s, box-shadow 0.4s; }
+    .safe-panel--aberto { border-color: var(--green-br); box-shadow: 0 0 0 3px rgba(22,163,74,0.1), var(--shadow); }
+    .safe-panel--fechado { border-color: var(--border); }
+    .safe-panel--abrindo, .safe-panel--fechando { border-color: var(--amber-br); box-shadow: 0 0 0 3px rgba(217,119,6,0.08), var(--shadow); }
+
+    /* Admin panel */
     .admin-panel {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 18px 20px;
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        box-shadow: var(--shadow);
-        cursor: pointer;
-        transition: all 0.15s;
-        width: 100%;
-        text-align: left;
-        font-family: 'DM Sans', sans-serif;
+        background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+        box-shadow: var(--shadow); padding: 16px 20px;
+        display: flex; align-items: center; justify-content: space-between; gap: 16px;
+        cursor: pointer; transition: all 0.15s; width: 100%; text-align: left;
     }
+    .admin-panel:hover { border-color: var(--accent); background: var(--blue-bg); }
+    .admin-panel:disabled { opacity: 0.4; cursor: not-allowed; }
+    .admin-left { display: flex; align-items: center; gap: 14px; }
+    .admin-icon { width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, #1F3864, #2E74B5); color: #fff; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .admin-icon svg { width: 18px; height: 18px; }
+    .admin-title { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
+    .admin-sub { font-size: 12px; color: var(--muted); }
+    .admin-arrow { color: var(--dim); flex-shrink: 0; }
 
-        .admin-panel:hover:not(:disabled) {
-            border-color: var(--accent);
-            box-shadow: 0 0 0 3px rgba(26,86,219,0.08), var(--shadow);
-        }
+    /* ══ Seção header (re-treino e histórico) ══ */
+    .ul-section-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+    .ul-section-icon { width: 36px; height: 36px; border-radius: 9px; background: var(--blue-bg); border: 1px solid var(--blue-br); color: var(--accent); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .ul-section-title { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
+    .ul-section-sub { font-size: 12px; color: var(--muted); }
 
-    .admin-left {
-        display: flex;
-        align-items: center;
-        gap: 14px;
+    /* ══ Re-treino ══ */
+    .ul-btn-retreino {
+        display: inline-flex; align-items: center; gap: 7px;
+        padding: 8px 14px; background: var(--bg); border: 1px solid var(--border);
+        border-radius: 8px; font-size: 13px; font-weight: 600; font-family: 'DM Sans', sans-serif;
+        color: var(--text); cursor: pointer; transition: all 0.15s;
     }
+    .ul-btn-retreino:hover { border-color: var(--accent); color: var(--accent); background: var(--blue-bg); }
+    .ul-btn-retreino--confirm { background: var(--text); color: white; border-color: var(--text); }
+    .ul-btn-retreino--confirm:hover { opacity: 0.85; color: white; background: var(--text); }
+    .ul-btn-retreino--cancel:hover { border-color: var(--red); color: var(--red); background: var(--red-bg); }
+    .ul-retreino-confirm { display: flex; flex-direction: column; gap: 10px; }
+    .ul-retreino-aviso { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--amber); background: var(--amber-bg); border: 1px solid var(--amber-br); border-radius: 8px; padding: 9px 12px; }
+    .ul-retreino-btns { display: flex; gap: 8px; }
+    .ul-retreino-aguardar { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
+    .ul-retreino-spinner { width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
 
-    .admin-icon {
-        width: 38px;
-        height: 38px;
-        background: #eff6ff;
-        border: 1px solid #dbeafe;
-        border-radius: 10px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: var(--accent);
-        flex-shrink: 0;
-    }
+    /* ══ Histórico ══ */
+    .ul-hist-empty { font-size: 13px; color: var(--dim); padding: 8px 0; }
+    .ul-hist-wrap { overflow-x: auto; }
+    .ul-hist-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    .ul-hist-table th { padding: 8px 12px; background: var(--bg2); border-bottom: 1px solid var(--border); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--dim); text-align: left; }
+    .ul-hist-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    .ul-hist-table tbody tr:last-child td { border-bottom: none; }
+    .ul-hist-table tbody tr:hover td { background: var(--bg2); }
+    .ul-hist-data { color: var(--muted); font-size: 11.5px; white-space: nowrap; font-family: monospace; }
+    .ul-hist-det { color: var(--muted); font-size: 11.5px; }
+    .ul-hist-badge { padding: 2px 9px; border-radius: 99px; font-size: 11px; font-weight: 600; display: inline-block; white-space: nowrap; }
+    .hist-verde   .ul-hist-table td:first-child { border-left: 3px solid var(--green); }
+    .hist-vermelho .ul-hist-table td:first-child { border-left: 3px solid var(--red); }
+    .badge-hist-verde    { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-br); }
+    .badge-hist-vermelho { background: var(--red-bg);   color: var(--red);   border: 1px solid var(--red-br); }
+    .badge-hist-neutro   { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
 
-        .admin-icon svg {
-            width: 18px;
-            height: 18px;
-        }
+    /* ══ Estado do cofre (porta) ══ */
+    .porta-status { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; margin-top: 4px; }
+    .porta-status--aberta  { background: var(--red-bg);   color: var(--red);   border: 1px solid var(--red-br); }
+    .porta-status--fechada { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-br); }
 
-    .admin-title {
-        font-size: 14px;
-        font-weight: 600;
-        color: var(--text);
-        margin-bottom: 2px;
-    }
+    /* ══ Vault door — mantida intacta ══ */
+    .vault-door { position: relative; width: 160px; height: 160px; }
+    .vault-ring { position: absolute; border-radius: 50%; }
+    .vault-ring--outer { inset: 0; border: 3px solid var(--border); }
+    .vault-ring--mid   { inset: 14px; border: 2px solid var(--border); }
+    .ring-tick { position: absolute; left: 50%; top: 0; width: 2px; transform-origin: 0 80px; }
+    .ring-tick--major { height: 7px; background: var(--dim); border-radius: 1px; }
+    .ring-tick--minor { height: 3px; background: var(--border); border-radius: 1px; }
+    .vault-center { position: absolute; inset: 28px; background: var(--surface); border-radius: 50%; border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.06) inset; }
+    .bolt { position: absolute; width: 10px; height: 10px; border-radius: 50%; background: var(--border); }
+    .bolt--tl { top: 6px; left: 6px; } .bolt--tr { top: 6px; right: 6px; }
+    .bolt--bl { bottom: 6px; left: 6px; } .bolt--br { bottom: 6px; right: 6px; }
+    .vault-symbol { color: var(--text); display: flex; align-items: center; justify-content: center; }
+    .vault-symbol-offline { opacity: 0.35; animation: pulse 2s ease-in-out infinite; }
+    .vault-handle { position: absolute; right: -14px; top: 50%; transform: translateY(-50%); width: 18px; height: 36px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); }
+    .handle-bar { background: var(--border); border-radius: 2px; }
+    .handle-bar--h { width: 18px; height: 4px; }
+    .handle-bar--v { width: 4px; height: 18px; }
+    .vault-handle--open { transform: translateY(-50%) rotate(90deg); }
+    .vault-door--open   { animation: vaultOpen 0.6s ease forwards; }
+    .vault-door--closed { animation: vaultClose 0.5s ease forwards; }
+    @@keyframes vaultOpen  { 0% { transform: rotate(0); } 100% { transform: rotate(-15deg); } }
+    @@keyframes vaultClose { 0% { transform: rotate(-15deg); } 100% { transform: rotate(0); } }
 
-    .admin-sub {
-        font-size: 12px;
-        color: var(--muted);
-    }
+    .vault-spinner { width: 28px; height: 28px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @@keyframes spin { to { transform: rotate(360deg); } }
 
-    .admin-arrow {
-        color: var(--dim);
-        flex-shrink: 0;
-    }
+    .safe-info { text-align: center; }
+    .safe-label { font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
+    .safe-status { font-size: 15px; font-weight: 700; }
+    .safe-status--aberto  { color: var(--green); }
+    .safe-status--fechado { color: var(--text); }
+    .safe-status--transicao { color: var(--amber); }
 
-    .admin-panel:hover:not(:disabled) .admin-arrow {
-        color: var(--accent);
-    }
+    /* Botão do cofre */
+    .btn-safe { display: flex; align-items: center; gap: 10px; width: 100%; padding: 12px 20px; border: none; border-radius: 10px; font-size: 14px; font-weight: 700; font-family: 'DM Sans', sans-serif; cursor: pointer; transition: all 0.2s; justify-content: center; }
+    .btn-safe--abrir  { background: var(--text); color: white; }
+    .btn-safe--abrir:hover:not(:disabled)  { opacity: 0.85; }
+    .btn-safe--fechar { background: var(--red-bg); color: var(--red); border: 1px solid var(--red-br); }
+    .btn-safe--fechar:hover:not(:disabled) { background: var(--red); color: white; }
+    .btn-safe--transicao { background: var(--amber-bg); color: var(--amber); border: 1px solid var(--amber-br); cursor: wait; }
+    .btn-safe:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; flex-shrink: 0; }
 
-    @@media (max-width: 600px) {
-        .topbar {
-            padding: 14px 20px;
-        }
+    /* Hardware status */
+    .hw-status { display: flex; align-items: center; gap: 10px; font-size: 12px; padding: 8px 12px; border-radius: 8px; width: 100%; }
+    .hw-status--searching { background: var(--amber-bg); color: var(--amber); border: 1px solid var(--amber-br); }
+    .hw-status--ok  { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-br); }
+    .hw-status--offline { background: var(--red-bg); color: var(--red); border: 1px solid var(--red-br); flex-wrap: wrap; }
+    .hw-status-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .hw-status-dot--ok { background: var(--green); box-shadow: 0 0 4px var(--green); animation: pulse 2s infinite; }
+    .hw-status-label { flex: 1; font-size: 12px; }
+    .hw-offline-text { flex: 1; display: flex; flex-direction: column; gap: 1px; }
+    .hw-offline-title { font-weight: 600; font-size: 12px; }
+    .hw-offline-sub { font-size: 11px; opacity: 0.75; }
+    .hw-search-anim, .hw-offline-anim { position: relative; width: 22px; height: 22px; flex-shrink: 0; }
+    .hw-search-ring { position: absolute; inset: 0; border-radius: 50%; border: 1.5px solid var(--amber); opacity: 0; animation: ripple 2s ease-out infinite; }
+    .hw-search-ring--2 { animation-delay: 0.8s; }
+    .hw-search-icon, .hw-offline-icon { position: relative; z-index: 1; }
+    @@keyframes ripple { 0% { transform: scale(0.5); opacity: 0.8; } 100% { transform: scale(2); opacity: 0; } }
+    @@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 
-        .center {
-            padding: 24px 16px;
-            align-items: flex-start;
-        }
-    }
+    .hw-dots span { animation: blink 1.4s infinite; }
+    .hw-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .hw-dots span:nth-child(3) { animation-delay: 0.4s; }
+    @@keyframes blink { 0%, 80%, 100% { opacity: 0; } 40% { opacity: 1; } }
+
+    .btn-retry { display: flex; align-items: center; gap: 6px; padding: 5px 12px; border: 1px solid var(--red-br); background: var(--surface); color: var(--red); border-radius: 7px; font-size: 12px; font-weight: 600; font-family: 'DM Sans', sans-serif; cursor: pointer; transition: all 0.15s; flex-shrink: 0; }
+    .btn-retry:hover { background: var(--red); color: white; }
+
+    .hw-error { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--red-bg); border: 1px solid var(--red-br); border-radius: 8px; font-size: 12px; color: var(--red); width: 100%; }
+    .hw-error button { margin-left: auto; background: none; border: none; cursor: pointer; color: var(--red); font-size: 16px; padding: 0; }
+
+    /* ══ Popup logout ══ */
+    .popup-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.35); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 200; }
+    .popup-card { background: var(--surface); border-radius: var(--radius); padding: 32px; border: 1px solid var(--border); box-shadow: 0 20px 60px rgba(0,0,0,0.15); text-align: center; display: flex; flex-direction: column; align-items: center; gap: 16px; }
+    .popup-icon { width: 60px; height: 60px; border-radius: 50%; background: var(--amber-bg); border: 2px solid var(--amber-br); display: flex; align-items: center; justify-content: center; }
+    .popup-msg { font-size: 14px; font-weight: 500; color: var(--text); max-width: 240px; }
+    .vault-spinner-lg { width: 32px; height: 32px; border: 3px solid var(--amber-br); border-top-color: var(--amber); border-radius: 50%; animation: spin 0.8s linear infinite; }
+
+    /* ══ Liveness bar ══ */
+    .liveness-bar { display: flex; align-items: center; gap: 6px; padding: 5px 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; font-size: 12px; color: var(--muted); }
+    .liveness-dots { display: flex; gap: 4px; margin-left: 4px; }
+    .liveness-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border); }
+    .liveness-dot--ok { background: var(--green); }
 </style>
+
