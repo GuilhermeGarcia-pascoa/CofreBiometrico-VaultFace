@@ -524,8 +524,7 @@
 
         IniciarTimerTimeout();
         // Ligar deteção de atividade JS
-        var dotnetRef = DotNetObjectReference.Create(this);
-        await JS.InvokeVoidAsync("iniciarMonitorAtividade", dotnetRef);
+
 
         // ── CORREÇÃO 1: restaurar estado real do cofre ao reentrar na página ──
         estadoCofre = Estado.EstadoCofreAtual switch
@@ -556,6 +555,17 @@
         StateHasChanged();
     }
 
+    private bool _jsIniciado = false;
+
+protected override async Task OnAfterRenderAsync(bool firstRender)
+{
+    if (firstRender && !_jsIniciado)
+    {
+        _jsIniciado = true;
+        var dotnetRef = DotNetObjectReference.Create(this);
+        await JS.InvokeVoidAsync("iniciarMonitorAtividade", dotnetRef);
+    }
+}
     // ── CORREÇÃO 2: bloqueia TODOS os botões durante qualquer transição ──
     private bool BloqueadoPorTransicao() =>
         estadoCofre == EstadoCofre.AAbrir ||
@@ -863,7 +873,7 @@
         color: var(--amber);
         animation: vf-pulse 1.5s ease-in-out infinite;
     }
-    @keyframes vf-pulse {
+    @@keyframes vf-pulse {
         0%, 100% { opacity: 1; }
         50% { opacity: 0.6; }
     }
