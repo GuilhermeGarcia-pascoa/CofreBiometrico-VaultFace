@@ -457,7 +457,6 @@ namespace PapAtualizacaoBeleza
                 }
             }
 
-
         }
 
         public void InserirUsuarioComRosto(string nome, byte[] imagemBytes, NivelPermissao permissao = NivelPermissao.Basico)
@@ -911,7 +910,6 @@ namespace PapAtualizacaoBeleza
                 }
             }
 
-            // LOG: Registro de exclusão
             RegistrarLog("Sistema", "Exclusão", $"Usuário ID {usuarioId} e todos os seus dados vinculados foram removidos.");
         }
 

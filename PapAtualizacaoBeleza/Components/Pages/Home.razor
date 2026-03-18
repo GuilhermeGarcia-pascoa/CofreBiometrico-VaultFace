@@ -847,7 +847,7 @@
                         CvInvoke.CvtColor(captured, gray, ColorConversion.Bgr2Gray);
                         AplicarCLAHE(gray, gray);
 
-                        _frameDesfocado = FocoInsuficiente(gray, 40.0); // só para diagnóstico, não bloqueia
+                        _frameDesfocado = FocoInsuficiente(gray, 40.0);
 
                         Rectangle[] faces = faceDetector!.DetectMultiScale(
                             gray, 1.2, 4, new Size(100, 100));

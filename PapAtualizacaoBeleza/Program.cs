@@ -1,42 +1,56 @@
-using PapAtualizacaoBeleza;
-using PapAtualizacaoBeleza.Components;
+< !DOCTYPE html >
+< html lang = "en" >
 
-var builder = WebApplication.CreateBuilder(args);
+< head >
+    < meta charset = "utf-8" />
+    < meta name = "viewport" content = "width=device-width, initial-scale=1.0" />
+    < base href = "/" />
+    < ResourcePreloader />
+    < link rel = "stylesheet" href = "@Assets["lib / bootstrap / dist / css / bootstrap.min.css"]" />
+    < link rel = "stylesheet" href = "@Assets["app.css"]" />
+    < link rel = "stylesheet" href = "@Assets["PapAtualizacaoBeleza.styles.css"]" />
+    < ImportMap />
+    < link rel = "icon" type = "image/png" href = "favicon.png" />
+    < HeadOutlet />
+</ head >
 
-builder.Services.AddScoped<BaseSql>();
-builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
-builder.Services.AddSingleton<EstadoApp>();
-builder.Services.AddSingleton<TemaService>();
-builder.Services.AddScoped<EmailService>();
-builder.Services.AddScoped<RelatorioPdfService>();
-
-var app = builder.Build();
-
-if (!app.Environment.IsDevelopment())
-{
-    app.UseExceptionHandler("/Error", createScopeForErrors: true);
-    app.UseHsts();
+< body >
+    < Routes />
+    < ReconnectModal />
+    < script src = "@Assets["_framework / blazor.web.js"]" ></ script >
+    < script >
+        window.downloadUrl = function(url) {
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = '';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function() { document.body.removeChild(a); }, 200);
 }
-app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
-app.UseHttpsRedirection();
+;
+window.focusElement = function(id) {
+    var el = document.getElementById(id);
+    if (el) { el.focus(); el.select(); }
+}
+;
 
-app.UseAntiforgery();
+// Timeout de sessão — notifica o Blazor quando há atividade do utilizador
+window.iniciarMonitorAtividade = function(dotnetRef) {
+    var eventos = ['mousemove', 'keydown', 'click', 'touchstart', 'scroll'];
+    var ultimo = Date.now();
+    eventos.forEach(function(ev) {
+        document.addEventListener(ev, function() {
+            var agora = Date.now();
+            if (agora - ultimo > 10000)
+            { // throttle: max 1x por 10s
+                ultimo = agora;
+                dotnetRef.invokeMethodAsync('RegistarAtividade');
+            }
+        }, { passive: true });
+    });
+}
+;
+    </ script >
+</ body >
 
-app.MapStaticAssets();
-app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode();
-
-// ── Download PDF do relatório ─────────────────────────────────────────────────
-app.MapGet("/api/relatorio-pdf", (string inicio, string fim, RelatorioPdfService pdf) =>
-{
-    // Parse robusto — aceita ISO 8601 completo (yyyy-MM-ddTHH:mm:ss)
-    if (!DateTime.TryParse(inicio, out var dtI)) dtI = DateTime.Today.AddDays(-6);
-    if (!DateTime.TryParse(fim, out var dtF)) dtF = DateTime.Now;
-
-    byte[] bytes = pdf.GerarRelatorio(dtI, dtF);
-    string nome = $"VaultFace_Relatorio_{dtI:yyyyMMdd}_{dtF:yyyyMMdd}.pdf";
-    return Results.File(bytes, "application/pdf", nome);
-});
-
-app.Run();
+</ html >

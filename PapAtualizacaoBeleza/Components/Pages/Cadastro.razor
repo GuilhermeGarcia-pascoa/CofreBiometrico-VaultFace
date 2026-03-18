@@ -217,7 +217,7 @@
 
                         <button class="btn-primary btn-full"
                                 @onclick="@(primeiroUtilizador? AvancarParaVerificacaoEmail : AvancarParaCamera)"
-                                disabled="@(string.IsNullOrWhiteSpace(nomeUsuario) || (primeiroUtilizador && string.IsNullOrWhiteSpace(emailUsuario)) || !consentimentoDado)">
+                                disabled="@(string.IsNullOrWhiteSpace(nomeUsuario) || (primeiroUtilizador && string.IsNullOrWhiteSpace(emailUsuario)) || !consentimentoDado || _enviandoCodigo)">
                             @(primeiroUtilizador ? "Continuar para verificação" : "Continuar para captura")
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
                         </button>
@@ -645,17 +645,7 @@
         var existentes = baseSql.ObterUsuariosComRostos();
         primeiroUtilizador = existentes == null || !existentes.Any();
 
-        // Dia 23: permitir re-treino pelo próprio utilizador
-        bool eRetreino = estadoApp.RetreinarBiometria;
-        if (eRetreino)
-        {
-            // Pré-preencher o nome e limpar a flag
-            // NÃO apagar UsuarioAtual aqui — causaria loop de redirecionamentos
-            nomeUsuario = estadoApp.UsuarioAtual?.Nome ?? "";
-            estadoApp.RetreinarBiometria = false;
-        }
-
-        if (!primeiroUtilizador && !estadoApp.EhAdmin && !eRetreino)
+        if (!primeiroUtilizador && !estadoApp.EhAdmin)
         {
             Navigation.NavigateTo("/", replace: true);
             return;
@@ -706,19 +696,23 @@
     }
 
     // Chamado pelo user master — valida email e avança para verificação
+    private bool _enviandoCodigo = false; // guard contra duplo clique
+
     private async Task AvancarParaVerificacaoEmail()
     {
+        if (_enviandoCodigo) return; // evitar duplo envio
         if (string.IsNullOrWhiteSpace(nomeUsuario)) { nomeErro = true; return; }
         nomeErro = false;
 
         if (!EmailValido(emailUsuario.Trim())) { emailErro = true; return; }
         emailErro = false;
 
+        _enviandoCodigo = true;
         nomeUsuario = nomeUsuario.Trim();
 
-        // Enviar código e avançar para a etapa de verificação
         await EnviarNovoCodigoAsync();
         etapa = Etapa.VerificacaoEmail;
+        _enviandoCodigo = false;
         StateHasChanged();
     }
 
@@ -1173,10 +1167,6 @@
                 // Todas as capturas feitas — concluir
                 _cadastroConcluido = true;
                 nomeRegistado = nomeParaSalvar;
-
-                // Dia 23: se foi re-treino, limpar sessão para forçar novo login
-                if (estadoApp.UsuarioAtual != null)
-                    estadoApp.UsuarioAtual = null;
 
                 // Log único consolidado de registo completo
                 baseSql.RegistrarLog(

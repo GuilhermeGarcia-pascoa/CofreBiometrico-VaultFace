@@ -5,6 +5,7 @@
 @inject NavigationManager Navigation
 @inject EstadoApp Estado
 @inject TemaService Tema
+@inject IJSRuntime JS
 @inject BaseSql BancoService
 @rendermode InteractiveServer
 
@@ -64,6 +65,15 @@
                     </svg>
                 }
             </button>
+            @if (_timeoutAviso)
+            {
+                <div class="timeout-aviso">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                        <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                    Sessão expira em 1 min
+                </div>
+            }
             <button class="btn-logout" @onclick="Logout" disabled="@BloqueadoPorTransicao()">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
                     <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
@@ -395,6 +405,43 @@
 </div>
 
 @code {
+    // ── Timeout de sessão (5 minutos de inatividade) ───────────────────────────
+    private const int TIMEOUT_MINUTOS = 5;
+    private DateTime _ultimaAtividade = DateTime.Now;
+    private System.Threading.Timer? _timeoutTimer;
+    private bool _timeoutAviso = false; // aviso 1 min antes
+
+    [JSInvokable]
+    public void RegistarAtividade()
+    {
+        _ultimaAtividade = DateTime.Now;
+        if (_timeoutAviso)
+        {
+            _timeoutAviso = false;
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void IniciarTimerTimeout()
+    {
+        _timeoutTimer = new System.Threading.Timer(_ =>
+        {
+            var inativo = (DateTime.Now - _ultimaAtividade).TotalMinutes;
+            if (inativo >= TIMEOUT_MINUTOS)
+            {
+                _ = InvokeAsync(async () =>
+                {
+                    await Logout();
+                });
+            }
+            else if (inativo >= TIMEOUT_MINUTOS - 1 && !_timeoutAviso)
+            {
+                _timeoutAviso = true;
+                _ = InvokeAsync(StateHasChanged);
+            }
+        }, null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+    }
+
     // Re-treino de biometria
     private string _retreinoEstado = "idle";
     private void IniciarRetreino() => _retreinoEstado = "confirmar";
@@ -474,6 +521,11 @@
             Navigation.NavigateTo("/", replace: true);
             return;
         }
+
+        IniciarTimerTimeout();
+        // Ligar deteção de atividade JS
+        var dotnetRef = DotNetObjectReference.Create(this);
+        await JS.InvokeVoidAsync("iniciarMonitorAtividade", dotnetRef);
 
         // ── CORREÇÃO 1: restaurar estado real do cofre ao reentrar na página ──
         estadoCofre = Estado.EstadoCofreAtual switch
@@ -681,6 +733,8 @@
     // ── Limpeza ao destruir a página ─────────────────────────────────────────
     public void Dispose()
     {
+        _timeoutTimer?.Dispose();
+        _timeoutTimer = null;
         _monitorTimer?.Dispose();
         _monitorTimer = null;
         _hw?.Dispose();
@@ -794,6 +848,25 @@
 
     body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; }
     .page { min-height: 100vh; background: var(--bg); display: flex; flex-direction: column; }
+
+    /* ══ Timeout aviso ══ */
+    .timeout-aviso {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 12px;
+        background: var(--amber-bg);
+        border: 1px solid var(--amber-br);
+        border-radius: 8px;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--amber);
+        animation: vf-pulse 1.5s ease-in-out infinite;
+    }
+    @keyframes vf-pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.6; }
+    }
 
     /* ══ Topbar ══ */
     .topbar {
