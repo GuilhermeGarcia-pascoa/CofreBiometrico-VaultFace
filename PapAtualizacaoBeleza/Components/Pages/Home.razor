@@ -684,6 +684,8 @@
 
     private Mat frame = new Mat();
     private readonly object frameLock = new object();
+    // SemaphoreSlim(1,1) = mutex assíncrono — garante que o Dispose espera o frame terminar
+    private readonly SemaphoreSlim _processSem = new SemaphoreSlim(1, 1);
     private bool cameraAtiva = false;
     private bool iaTreinada = false;
     private bool loginRealizado = false;
@@ -749,7 +751,19 @@
             mensagemErro = "Recurso de deteção facial não encontrado.";
             return;
         }
-        faceDetector = new CascadeClassifier(cascadePath);
+        try
+        {
+            faceDetector = new CascadeClassifier(cascadePath);
+            // Verificar se o classificador carregou — tentar uma deteção dummy
+            using var testMat = new Mat(100, 100, Emgu.CV.CvEnum.DepthType.Cv8U, 1);
+            faceDetector.DetectMultiScale(testMat, 1.1, 1, new Size(10, 10));
+        }
+        catch (Exception ex)
+        {
+            mensagemErro = $"Erro ao inicializar deteção facial: {ex.Message}. Reinicia a aplicação.";
+            faceDetector = null;
+            return;
+        }
         await Task.Run(TreinarInteligencia);
         if (!iaTreinada) Navigation.NavigateTo("/cadastro");
         else await IniciarCamera(); // auto-liga câmera se já há utilizadores treinados
@@ -849,8 +863,14 @@
 
                         _frameDesfocado = FocoInsuficiente(gray, 40.0);
 
-                        Rectangle[] faces = faceDetector!.DetectMultiScale(
-                            gray, 1.2, 4, new Size(100, 100));
+                        Rectangle[] faces;
+                        await _processSem.WaitAsync(token);
+                        try
+                        {
+                            if (faceDetector == null) { faces = Array.Empty<Rectangle>(); }
+                            else { faces = faceDetector.DetectMultiScale(gray, 1.2, 4, new Size(100, 100)); }
+                        }
+                        finally { _processSem.Release(); }
 
                         bool alguemIdentificado = false;
 
@@ -860,24 +880,32 @@
                             using Mat rostoROI = new Mat(gray, roiComPadding);
                             using Mat rostoSized = new Mat();
                             CvInvoke.Resize(rostoROI, rostoSized, new Size(FACE_SIZE, FACE_SIZE));
-                            var result = reconhecedor.Predict(rostoSized);
+                            dynamic? result = null;
+                            await _processSem.WaitAsync(token);
+                            try
+                            {
+                                if (reconhecedor != null)
+                                    result = reconhecedor.Predict(rostoSized);
+                            }
+                            finally { _processSem.Release(); }
+                            if (result == null) goto skipBlock;
 
                             // Atualiza diagnóstico sempre, mesmo fora do limiar
-                            _distanciaAtual = result.Label != -1 ? result.Distance : -1;
-                            _nomeAtual = result.Label != -1 && usuariosTreinados.TryGetValue(result.Label, out var uDiag)
+                            _distanciaAtual = (int)result.Label != -1 ? (double)result.Distance : -1;
+                            _nomeAtual = (int)result.Label != -1 && usuariosTreinados.TryGetValue((int)result.Label, out Usuario? uDiag)
                                 ? uDiag.Nome : "";
 
-                            if (result.Label != -1 && result.Distance < LIMIAR_CONFIANCA)
+                            if ((int)result.Label != -1 && (double)result.Distance < LIMIAR_CONFIANCA)
                             {
-                                if (usuariosTreinados.TryGetValue(result.Label, out var usuario))
+                                if (usuariosTreinados.TryGetValue((int)result.Label, out Usuario? usuario))
                                 {
                                     // Reset de score se mudou de utilizador
-                                    if (_ultimoLabelDetectado != -1 && _ultimoLabelDetectado != result.Label)
+                                    if (_ultimoLabelDetectado != -1 && _ultimoLabelDetectado != (int)result.Label)
                                         scoreAcumulado = 0;
-                                    _ultimoLabelDetectado = result.Label;
+                                    _ultimoLabelDetectado = (int)result.Label;
 
                                     // Score ponderado — frames certos valem mais
-                                    double ganho = SCORE_GANHO_MAX * (1.0 - result.Distance / LIMIAR_CONFIANCA);
+                                    double ganho = SCORE_GANHO_MAX * (1.0 - (double)result.Distance / LIMIAR_CONFIANCA);
                                     scoreAcumulado = Math.Min(scoreAcumulado + ganho, SCORE_PARA_LOGIN);
 
                                     _framesSemsinal = 0;
@@ -890,6 +918,7 @@
                             }
                         }
 
+                        skipBlock:
                         // Debounce na descida
                         if (!alguemIdentificado)
                         {
@@ -1041,7 +1070,17 @@
         cts?.Cancel();
         cts?.Dispose();
         cts = null;
-        await Task.Delay(150);
+        await Task.Delay(300);
+        // Aguardar que o frame actual termine antes de libertar os objetos nativos
+        _processSem.Wait();
+        try
+        {
+            faceDetector?.Dispose();
+            faceDetector = null;
+            reconhecedor?.Dispose();
+            reconhecedor = null;
+        }
+        finally { _processSem.Release(); }
         lock (frameLock)
         {
             camera?.Dispose();
@@ -1079,6 +1118,7 @@
 
     public void Dispose()
     {
+        _processSem.Dispose();
         _timerBloqueio?.Dispose();
         PararCamera();
         faceDetector?.Dispose();
